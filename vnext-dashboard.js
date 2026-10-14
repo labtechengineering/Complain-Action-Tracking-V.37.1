@@ -88,11 +88,14 @@ async function toggleResults(dept,status){const key=dept+'|'+status;if(activeFil
    const code=document.createElement('div');code.className='job-route';code.textContent=j.carCode||j.jobId;
    const route=document.createElement('div');route.className='job-meta';route.textContent=(j.fromDepartment||'-')+' → '+(j.toDepartment||'-');left.append(code,route);
    const right=document.createElement('div');right.className='job-side';
-   QA.setStatusBadge(right,j.status);
-   const badge=right.querySelector('.status')||right.firstElementChild;
+   const badge=document.createElement('span');
+   const info=QA.statusInfo(j.status);
+   badge.className='status '+info.cssClass;
    const thaiStatus={OPEN:'แจ้งงาน',IN_PROGRESS:'กำลังดำเนินการ',REWORK:'กำลังดำเนินการ',WAITING_REVIEW:'รอตรวจสอบ',CLOSED:'สำเร็จ',CANCELLED:'ยกเลิกแล้ว'};
-   if(badge)badge.textContent=thaiStatus[String(j.status||'').toUpperCase()]||'ไม่ทราบสถานะ';
-   const date=document.createElement('span');date.className='job-date';date.textContent=String(j.createdDateTime||'').trim().split(/[ T]/)[0];right.append(date);
+   badge.textContent=thaiStatus[String(j.status||'').trim().toUpperCase()]||'ไม่ทราบสถานะ';
+   const date=document.createElement('span');date.className='job-date';
+   date.textContent=String(j.createdDateTime||j.created_at||'').trim().split(/[ T]/)[0];
+   right.append(badge,date);
    card.append(left,right);box.append(card);
   }
   if(a.length>=200||b.length>=1000){const note=document.createElement('p');note.className='filtered-empty';note.textContent='แสดงรายการได้ไม่ครบทั้งหมด เนื่องจากข้อจำกัดจำนวนข้อมูลใน API';box.append(note)}

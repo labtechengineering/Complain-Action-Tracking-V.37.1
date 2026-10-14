@@ -140,11 +140,14 @@ function render(jobs){const list=document.getElementById('list');list.replaceChi
   const left=document.createElement('div');
   left.innerHTML='<div class="route">'+QA.escape(j.carCode||j.jobId)+'</div><div class="meta">'+QA.escape(j.fromDepartment)+' → '+QA.escape(j.toDepartment)+'</div>';
   const right=document.createElement('div');right.className='job-side';
-  QA.setStatusBadge(right,j.status);
-  const badge=right.querySelector('.status')||right.firstElementChild;
+  const badge=document.createElement('span');
+  const info=QA.statusInfo(j.status);
+  badge.className='status '+info.cssClass;
   const thaiStatus={OPEN:'แจ้งงาน',IN_PROGRESS:'กำลังดำเนินการ',REWORK:'กำลังดำเนินการ',WAITING_REVIEW:'รอตรวจสอบ',CLOSED:'สำเร็จ',CANCELLED:'ยกเลิกแล้ว'};
-  if(badge)badge.textContent=thaiStatus[String(j.status||'').toUpperCase()]||'ไม่ทราบสถานะ';
-  const when=document.createElement('span');when.className='job-date';when.textContent=String(j.createdDateTime||'').trim().split(/[ T]/)[0];right.appendChild(when);
+  badge.textContent=thaiStatus[String(j.status||'').trim().toUpperCase()]||'ไม่ทราบสถานะ';
+  const when=document.createElement('span');when.className='job-date';
+  when.textContent=String(j.createdDateTime||j.created_at||'').trim().split(/[ T]/)[0];
+  right.append(badge,when);
   c.append(left,right);list.append(c);
 })}
 </script>
