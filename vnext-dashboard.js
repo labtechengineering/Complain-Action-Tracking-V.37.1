@@ -82,9 +82,19 @@ async function toggleResults(dept,status){const key=dept+'|'+status;if(activeFil
   const filtered=all.filter(x=>(!dept||String(x.toDepartment||'').split(/[;,|]/).map(s=>s.trim()).includes(dept))&&(status==='all'||normStatus(x.status)===status)&&withinPeriod(x.createdDateTime||x.created_at));
   if(requestId!==resultsRequestId)return;
   box.replaceChildren();if(!filtered.length){box.innerHTML='<div class="filtered-empty">ไม่พบใบงานในเงื่อนไขนี้</div>';return}
-  for(const j of filtered){const a=document.createElement('a');a.className='filtered-card';a.href=j.vnext?'vnext-job.html?id='+encodeURIComponent(j.jobId):QA.jobUrl(j.jobId);
-   const left=document.createElement('span');const strong=document.createElement('strong');strong.textContent=j.carCode||j.jobId;const sub=document.createElement('small');sub.style.display='block';sub.textContent=(j.fromDepartment||'-')+' → '+(j.toDepartment||'-');left.append(strong,sub);
-   const right=document.createElement('span');right.style.textAlign='right';right.textContent=({OPEN:'กำลังดำเนินการ',IN_PROGRESS:'กำลังดำเนินการ',REWORK:'กำลังดำเนินการ',WAITING_REVIEW:'รอตรวจสอบ',CLOSED:'สำเร็จ'}[j.status]||j.status);const date=document.createElement('small');date.style.display='block';date.textContent=j.createdDateTime||'';right.append(date);a.append(left,right);box.append(a);}
+  for(const j of filtered){
+   const card=document.createElement('a');card.className='filtered-card';card.href=j.vnext?'vnext-job.html?id='+encodeURIComponent(j.jobId):QA.jobUrl(j.jobId);
+   const left=document.createElement('div');
+   const code=document.createElement('div');code.className='job-route';code.textContent=j.carCode||j.jobId;
+   const route=document.createElement('div');route.className='job-meta';route.textContent=(j.fromDepartment||'-')+' → '+(j.toDepartment||'-');left.append(code,route);
+   const right=document.createElement('div');right.className='job-side';
+   QA.setStatusBadge(right,j.status);
+   const badge=right.querySelector('.status')||right.firstElementChild;
+   const thaiStatus={OPEN:'แจ้งงาน',IN_PROGRESS:'กำลังดำเนินการ',REWORK:'กำลังดำเนินการ',WAITING_REVIEW:'รอตรวจสอบ',CLOSED:'สำเร็จ',CANCELLED:'ยกเลิกแล้ว'};
+   if(badge)badge.textContent=thaiStatus[String(j.status||'').toUpperCase()]||'ไม่ทราบสถานะ';
+   const date=document.createElement('span');date.className='job-date';date.textContent=String(j.createdDateTime||'').trim().split(/[ T]/)[0];right.append(date);
+   card.append(left,right);box.append(card);
+  }
   if(a.length>=200||b.length>=1000){const note=document.createElement('p');note.className='filtered-empty';note.textContent='แสดงรายการได้ไม่ครบทั้งหมด เนื่องจากข้อจำกัดจำนวนข้อมูลใน API';box.append(note)}
  }catch(e){if(requestId===resultsRequestId)box.textContent='ค้นหารายการไม่สำเร็จ: '+e.message}
 }
