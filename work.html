@@ -20,7 +20,7 @@
     .list{display:grid;gap:7px}.job{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px 13px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;cursor:pointer;transition:background .15s,border-color .15s}.job:hover,.job:focus-visible{background:#f8fafc;border-color:#94a3b8;outline:none}.route{font-weight:800;font-size:13px}.meta{font-size:13px;color:#64748b;margin-top:3px;line-height:1.35}
     .status{display:inline-flex!important;align-items:center;justify-content:center;align-self:start;justify-self:end;width:fit-content!important;height:auto!important;min-height:0!important;border-radius:999px;padding:5px 9px;font-size:12px;font-weight:800;white-space:nowrap;line-height:1.2}
     .status.OPEN{background:#fff3cd;color:#856404}.status.IN_PROGRESS{background:#dbeafe;color:#1e40af}.status.WAITING_REVIEW{background:#ede9fe;color:#5b21b6}.status.REWORK{background:#fee2e2;color:#991b1b}.status.CLOSED{background:#dcfce7;color:#166534}.status.CANCELLED{background:#e5e7eb;color:#374151}.status.UNKNOWN{background:#e5e7eb;color:#374151}
-    .job-side{display:flex;flex-direction:column;align-items:flex-end;gap:5px}.job-date{font-size:11px;color:#64748b;white-space:nowrap}.open{display:none}.empty{background:#fff;padding:28px;border-radius:12px;color:#64748b;text-align:center}.count{font-size:13px;color:#64748b;margin:0 0 12px}
+    .job-side{display:flex;flex-direction:column;align-items:flex-end;gap:6px}.job-date{font-size:11px;color:#64748b;white-space:nowrap}.open{display:none}.empty{background:#fff;padding:28px;border-radius:12px;color:#64748b;text-align:center}.count{font-size:13px;color:#64748b;margin:0 0 12px}
     @media(max-width:650px){.page{padding:16px 10px}.job{grid-template-columns:minmax(0,1fr) auto;gap:7px;padding:9px}.route{font-size:12px}.job-date{font-size:10px}.search-row{flex-direction:column;align-items:stretch}}
 
 /* V38 approved department greeting + summary; no changes to other pages */
@@ -140,8 +140,11 @@ function render(jobs){const list=document.getElementById('list');list.replaceChi
   const left=document.createElement('div');
   left.innerHTML='<div class="route">'+QA.escape(j.carCode||j.jobId)+'</div><div class="meta">'+QA.escape(j.fromDepartment)+' → '+QA.escape(j.toDepartment)+'</div>';
   const right=document.createElement('div');right.className='job-side';
-  QA.setStatusBadge(right,j.status);if(j.status==='WAITING_REVIEW'){const b=right.querySelector('.status')||right.firstElementChild;if(b)b.textContent='รอตรวจสอบ'}
-  const when=document.createElement('span');when.className='job-date';when.textContent=j.createdDateTime||'';right.appendChild(when);
+  QA.setStatusBadge(right,j.status);
+  const badge=right.querySelector('.status')||right.firstElementChild;
+  const thaiStatus={OPEN:'แจ้งงาน',IN_PROGRESS:'กำลังดำเนินการ',REWORK:'กำลังดำเนินการ',WAITING_REVIEW:'รอตรวจสอบ',CLOSED:'สำเร็จ',CANCELLED:'ยกเลิกแล้ว'};
+  if(badge)badge.textContent=thaiStatus[String(j.status||'').toUpperCase()]||'ไม่ทราบสถานะ';
+  const when=document.createElement('span');when.className='job-date';when.textContent=String(j.createdDateTime||'').trim().split(/[ T]/)[0];right.appendChild(when);
   c.append(left,right);list.append(c);
 })}
 </script>

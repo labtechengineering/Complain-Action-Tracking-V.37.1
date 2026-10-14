@@ -49,7 +49,7 @@ function render(){const sum=key=>rows.reduce((a,r)=>a+num(r[key]),0);
  const totals=document.createElement('div');totals.className='total';totals.textContent=total||'0';
  const column=document.createElement('div');column.className='columns';column.style.height=(280*total/max)+'px';
  values.forEach((n,i)=>{if(n===0)return;const segment=document.createElement('div');segment.className='segment';segment.style.background=colors[i];segment.style.flex=n;segment.tabIndex=0;segment.setAttribute('role','button');segment.title=n+' งาน · คลิกแสดงรายการ';segment.textContent=n;const status=['IN_PROGRESS','WAITING_REVIEW','CLOSED'][i];const code=r.department_code;segment.onclick=()=>toggleResults(code,status);segment.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggleResults(code,status)}};column.append(segment);});
- const label=document.createElement('div');label.className='dept';label.textContent=r.department_name||r.department_code;
+ const label=document.createElement('div');label.className='dept';label.textContent=r.department_code||'-';
  item.append(totals,column,label);plot.append(item);}}
 function draw(){const data=rows,canvas=document.createElement('canvas');const width=Math.max(1080,180+data.length*140),height=760,scale=2;canvas.width=width*scale;canvas.height=height*scale;
  const c=canvas.getContext('2d');c.scale(scale,scale);c.fillStyle='#fff';c.fillRect(0,0,width,height);c.fillStyle='#172337';c.font='bold 28px Arial';c.fillText('Complain Dashboard',36,51);c.font='16px Arial';c.fillStyle='#526277';c.fillText(lastLabel,36,82);
@@ -62,7 +62,7 @@ function draw(){const data=rows,canvas=document.createElement('canvas');const wi
  data.forEach((r,i)=>{const bw=Math.min(75,chartW/(Math.max(1,data.length)*1.7)),x=left+(i+.5)*chartW/data.length-bw/2;
  let y=base;[num(r.in_progress),num(r.waiting_review),num(r.completed)].forEach((v,j)=>{if(!v)return;const h=(base-top)*v/max;y-=h;c.fillStyle=colors[j];c.fillRect(x,y,bw,h);if(h>=18){c.fillStyle='#fff';c.font='bold 14px Arial';c.textAlign='center';c.fillText(String(v),x+bw/2,y+h/2+5);c.textAlign='left';}});
  c.fillStyle='#172337';c.font='bold 14px Arial';c.textAlign='center';c.fillText(String(num(r.total)),x+bw/2,y-8);
- c.font='13px Arial';c.fillText(String(r.department_name||r.department_code).slice(0,20),x+bw/2,base+27);c.textAlign='left';});
+ c.font='13px Arial';c.fillText(String(r.department_code||'-'),x+bw/2,base+27);c.textAlign='left';});
  c.fillStyle='#64748b';c.font='12px Arial';c.fillText('งานทั้งหมด ณ เวลาที่สร้างรายงาน · จำนวนหนึ่งงานต่อหนึ่งฝ่ายรับเรื่อง',36,737);return canvas;}
 let activeFilter=null,resultsRequestId=0;
 function closeResults(){resultsRequestId++;activeFilter=null;const pane=$('filtered');if(pane)pane.hidden=true;document.querySelectorAll('.filter-card').forEach(x=>x.classList.remove('active'));}
