@@ -88,7 +88,7 @@
   const statusLabels=Object.freeze({
     OPEN:'เปิดงาน / รอรับงาน',
     IN_PROGRESS:'กำลังดำเนินการ',
-    WAITING_REVIEW:'รอผู้แจ้งตรวจรับ',
+    WAITING_REVIEW:'รอตรวจสอบ',
     REWORK:'ส่งกลับแก้ไข',
     CLOSED:'ปิดงานแล้ว',
     CANCELLED:'ยกเลิกแล้ว'

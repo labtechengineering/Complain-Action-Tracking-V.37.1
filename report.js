@@ -229,7 +229,7 @@ function buildJobPdfHtml_(job, documentType, isFinal) {
       );
 
       let qaResult =
-        'รอผู้แจ้งตรวจรับ';
+        'รอตรวจสอบ';
 
       if (
         String(log.result || '').toUpperCase() ===

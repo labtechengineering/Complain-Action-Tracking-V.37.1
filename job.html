@@ -9,8 +9,8 @@
   <meta name="referrer" content="no-referrer">
   <script src="config.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-api.js?v=37.1.4"></script>
-  <script src="navigation.js?v=37.1.4"></script>
+  <script src="supabase-api.js?v=38.0.0"></script>
+  <script src="navigation.js?v=38.0.0"></script>
   <style>.qa-auth-loading > :not(script):not(style){display:none!important} .qa-app-content{min-width:0}</style>
 
   <base target="_self">
@@ -874,12 +874,12 @@
          style="display:none;">
 
       <div class="section-title">
-        รอผู้แจ้งตรวจรับ
+        รอตรวจสอบ
       </div>
 
       <p>
         ฝ่ายผู้รับผิดชอบส่งผลการแก้ไขแล้ว
-        ขณะนี้งานอยู่ระหว่างรอผู้แจ้งตรวจรับ
+        ขณะนี้งานอยู่ระหว่างรอตรวจสอบ
       </p>
 
     </div>
@@ -1129,7 +1129,7 @@ renderCorrectiveHistory(
       nextTitle = requester + ' ตรวจรับผลการดำเนินการ ' + roundText;
       nextDetail = canVerify
         ? 'ตรวจรายละเอียดและรูป AFTER แล้วเลือก “ผ่าน / ปิดงาน” หรือ “ไม่ผ่าน / ส่งกลับแก้ไข” พร้อมเหตุผล'
-        : 'ส่งผลเรียบร้อยแล้ว รอผู้แจ้งตรวจรับและแจ้งผล ข้อมูลของรอบที่ส่งตรวจถูกล็อกไว้แล้ว';
+        : 'ส่งผลเรียบร้อยแล้ว รอตรวจสอบและแจ้งผล ข้อมูลของรอบที่ส่งตรวจถูกล็อกไว้แล้ว';
       meta[1] = 'ส่งผลการแก้ไขแล้ว';
       meta[2] = 'รอตรวจ ' + roundText;
       if (canVerify) {target='qaCard';focus='qaComment';actionLabel='ไปตรวจผลการแก้ไข';}
@@ -1517,7 +1517,7 @@ renderCorrectiveHistory(
       } else if (log.result === 'REJECT') {
         result.textContent = 'ผลตรวจรับ: ไม่ผ่าน';
       } else {
-        result.textContent = 'รอผู้แจ้งตรวจรับ';
+        result.textContent = 'รอตรวจสอบ';
       }
 
       box.appendChild(result);
@@ -2406,5 +2406,6 @@ async function submitQaResult(approved) {
     if(exportButton) exportButton.title='PDF V37.1.4';
   });
 </script>
-</body>
+<script src="vnext-redirect.js?v=38.0.0" defer></script>
+<script src="vnext-redirect.js?v=38.0.0" defer></script></body>
 </html>

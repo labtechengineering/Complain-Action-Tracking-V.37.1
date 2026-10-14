@@ -8,8 +8,8 @@
   <!-- V37.1.4: System Admin global worklist -->
   <script src="config.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-api.js?v=37.1.4"></script>
-  <script src="navigation.js?v=37.1.4"></script>
+  <script src="supabase-api.js?v=38.0.0"></script>
+  <script src="navigation.js?v=38.0.0"></script>
   <style>
     *{box-sizing:border-box}body{font-family:Arial,Tahoma,sans-serif;background:#f4f6f8;margin:0;color:#1f2937}
     .page{max-width:1180px;margin:auto;padding:30px 24px}h1{margin:0}.sub{color:#64748b;margin:7px 0 18px}
@@ -17,38 +17,132 @@
     .search-row{display:flex;gap:10px;align-items:center}.search-row input{flex:1;min-width:0;border:1px solid #cbd5e1;border-radius:10px;padding:11px 13px;font-size:14px}.search-row button{border:0;border-radius:10px;background:#111827;color:#fff;padding:11px 16px;font-weight:800;cursor:pointer}.search-help{font-size:12px;color:#64748b;margin-top:8px}
     .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}.tabs button{border:1px solid #cbd5e1;background:#fff;border-radius:999px;padding:9px 14px;cursor:pointer}.tabs button.active{background:#111827;color:#fff;border-color:#111827}
     .summary{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}.pill{border:1px solid #e2e8f0;padding:7px 11px;border-radius:999px;background:#fff;font-size:12px;font-weight:800;cursor:pointer}.pill.active{outline:2px solid #111827;outline-offset:1px}
-    .list{display:grid;gap:12px}.job{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:start}.route{font-weight:800}.meta{font-size:13px;color:#64748b;margin-top:7px;line-height:1.55}
-    .status{display:inline-flex!important;align-items:center;justify-content:center;align-self:start;justify-self:end;width:fit-content!important;height:auto!important;min-height:0!important;border-radius:999px;padding:6px 10px;font-size:12px;font-weight:800;white-space:nowrap;line-height:1.2}
+    .list{display:grid;gap:7px}.job{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px 13px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;cursor:pointer;transition:background .15s,border-color .15s}.job:hover,.job:focus-visible{background:#f8fafc;border-color:#94a3b8;outline:none}.route{font-weight:800;font-size:13px}.meta{font-size:13px;color:#64748b;margin-top:3px;line-height:1.35}
+    .status{display:inline-flex!important;align-items:center;justify-content:center;align-self:start;justify-self:end;width:fit-content!important;height:auto!important;min-height:0!important;border-radius:999px;padding:5px 9px;font-size:12px;font-weight:800;white-space:nowrap;line-height:1.2}
     .status.OPEN{background:#fff3cd;color:#856404}.status.IN_PROGRESS{background:#dbeafe;color:#1e40af}.status.WAITING_REVIEW{background:#ede9fe;color:#5b21b6}.status.REWORK{background:#fee2e2;color:#991b1b}.status.CLOSED{background:#dcfce7;color:#166534}.status.CANCELLED{background:#e5e7eb;color:#374151}.status.UNKNOWN{background:#e5e7eb;color:#374151}
-    .open{display:inline-block;margin-top:10px;background:#111827;color:#fff;text-decoration:none;padding:8px 12px;border-radius:7px}.empty{background:#fff;padding:28px;border-radius:12px;color:#64748b;text-align:center}.count{font-size:13px;color:#64748b;margin:0 0 12px}
-    @media(max-width:650px){.page{padding:22px 14px}.job{grid-template-columns:1fr}.status{justify-self:start}.search-row{flex-direction:column;align-items:stretch}}
+    .job-side{display:flex;flex-direction:column;align-items:flex-end;gap:5px}.job-date{font-size:11px;color:#64748b;white-space:nowrap}.open{display:none}.empty{background:#fff;padding:28px;border-radius:12px;color:#64748b;text-align:center}.count{font-size:13px;color:#64748b;margin:0 0 12px}
+    @media(max-width:650px){.page{padding:16px 10px}.job{grid-template-columns:minmax(0,1fr) auto;gap:7px;padding:9px}.route{font-size:12px}.job-date{font-size:10px}.search-row{flex-direction:column;align-items:stretch}}
+
+/* V38 approved department greeting + summary; no changes to other pages */
+.greeting{position:relative;overflow:hidden;margin:0 0 18px;border:1px solid #f3dc9c;border-radius:18px;padding:24px 26px;background:linear-gradient(105deg,#efbf3b 0%,#f7da89 38%,#fff9e9 78%,#fff 100%);box-shadow:0 5px 16px rgba(95,72,17,.07);isolation:isolate}
+.greeting:before{content:"";position:absolute;width:340px;height:340px;border:1px solid rgba(255,255,255,.42);border-radius:50%;right:-115px;top:-140px;pointer-events:none;z-index:-1}
+.greeting:after{content:"";position:absolute;width:180px;height:180px;border:1px solid rgba(196,149,42,.11);border-radius:50%;right:120px;bottom:-125px;pointer-events:none;z-index:-1}
+.greeting-date{font-size:12px;color:#655020;margin:0 0 8px}.greeting-name{font-size:22px;color:#222f43;font-weight:800;margin:0 0 5px}.greeting-dept{font-size:13px;color:#625a46}
+.scope-wrap{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:14px}.scope-label{font-size:13px;font-weight:800;white-space:nowrap}.scope-wrap .tabs{margin:0}
+.summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 16px}
+.summary .pill{display:flex;flex-direction:column;align-items:flex-start;text-align:left;border-radius:13px;min-height:84px;padding:13px 14px;gap:8px;background:#fff;box-shadow:0 3px 12px rgba(15,23,42,.035);font-weight:500}
+.summary .pill .sum-num{font-size:26px;font-weight:800;color:#1f2937}.summary .pill .sum-label{font-size:12px;color:#526174}.summary .pill.active{outline:2px solid #c18b16;outline-offset:0;background:#fffbef}
+.summary .pill:disabled{opacity:.6;cursor:not-allowed}
+.job .route{font-size:15px}.job .meta{margin-top:8px}.job .job-side{justify-content:space-between;align-self:stretch}
+@media(max-width:700px){.summary{grid-template-columns:repeat(2,minmax(0,1fr))}.greeting{padding:19px}.greeting-name{font-size:19px}}
   </style>
 </head>
 <body class="qa-auth-loading">
 <main class="page">
   <h1>ใบงาน</h1>
-  <div id="profileText" class="sub"></div>
+  <section class="greeting" aria-label="ข้อมูลผู้ใช้งาน"><div id="greetingDate" class="greeting-date"></div><div id="greetingName" class="greeting-name"></div><div id="profileText" class="greeting-dept"></div></section>
+  <div id="summary" class="summary" aria-label="สรุปงานที่แจ้งเข้าแผนก"></div>
+  <section class="scope-wrap"><span class="scope-label">ขอบเขตงาน</span><div id="tabs" class="tabs"></div></section>
   <section class="search-card">
     <div class="search-row">
-      <input id="globalSearch" type="search" autocomplete="off" placeholder="ค้นหา Job ID, Serial, ชื่อผู้แจ้ง, แผนก, สถานะ, วันที่ หรือคำในรายละเอียด...">
+      <input id="globalSearch" type="search" autocomplete="off" placeholder="ค้นหาเลข CAR, Serial Number, ลูกค้า, แผนก หรือรายละเอียด...">
       <button type="button" id="searchBtn">ค้นหา</button>
     </div>
-    <div class="search-help">ค้นหาได้จากคำเดียว เช่น IPN-2026-0001, MAINT, WAITING REVIEW, 28/09/2026 หรือข้อความในใบงาน</div>
+    <div class="search-help">ค้นหาเลขใบงาน ลูกค้า Serial Number แผนก วันที่ สถานะ หรือรายละเอียดปัญหา</div>
   </section>
-  <div id="tabs" class="tabs"></div>
-  <div id="summary" class="summary"></div>
   <p id="resultCount" class="count"></p>
   <div id="list" class="list"><div class="empty">กำลังโหลด...</div></div>
 </main>
 <script>
-let scope='', statusFilter='', lastJobs=[];
-const baseScopes=[['mine','งานที่ฉันแจ้ง'],['received','งานเข้าแผนก'],['department_sent','งานที่แผนกแจ้ง'],['review','รอตรวจรับ'],['closed','ปิด / ยกเลิกแล้ว']];
+let scope='', statusFilter='', lastJobs=[], summarySelection='', priorScope='', worklistRequestId=0;
+const baseScopes=[['mine','งานที่ฉันแจ้ง'],['received','งานเข้าแผนก'],['department_sent','งานที่แผนกแจ้ง'],['review','รอตรวจสอบ'],['closed','ปิด / ยกเลิกแล้ว']];
 document.addEventListener('DOMContentLoaded',()=>{setTimeout(initWork,0)});
-async function initWork(){await waitQA();const role=QA.profile.role;const dept=String(QA.profile.department||'').trim();document.getElementById('profileText').textContent=role==='system_admin'?(QA.profile.display_name||'')+' · System Admin · ทุกแผนก':(QA.profile.display_name||'')+' · '+(dept||'-');scope=(role==='system_admin'||role==='viewer')?'all':'mine';renderTabs();document.getElementById('searchBtn').onclick=()=>loadScope();document.getElementById('globalSearch').addEventListener('keydown',e=>{if(e.key==='Enter')loadScope()});loadScope()}
+async function initWork(){await waitQA();const role=QA.profile.role;const dept=String(QA.profile.department||'').trim();document.getElementById('profileText').textContent=role==='system_admin'?'System Admin · '+(dept||'ทุกแผนก'):(dept||'-');document.getElementById('greetingName').textContent='สวัสดี คุณ'+(QA.profile.display_name||'ผู้ใช้งาน');document.getElementById('greetingDate').textContent=new Intl.DateTimeFormat('th-TH',{dateStyle:'full',timeZone:'Asia/Bangkok'}).format(new Date());scope=(role==='system_admin'||role==='viewer')?'all':(dept?'received':'mine');renderTabs();loadReceivedSummary();document.getElementById('searchBtn').onclick=()=>loadScope(true);document.getElementById('globalSearch').addEventListener('keydown',e=>{if(e.key==='Enter')loadScope(true)});loadScope()}
 function waitQA(){return new Promise((res,rej)=>{let n=0;const t=setInterval(()=>{if(QA.profile){clearInterval(t);res()}else if(++n>100){clearInterval(t);rej(new Error('Profile load timeout'))}},50)})}
-function availableScopes(){const role=QA.profile.role,dept=String(QA.profile.department||'').trim();if(role==='system_admin')return [['all','ทั้งหมด'],baseScopes[0]];if(role==='viewer')return [['all','ทั้งหมด']];const out=[baseScopes[0]];if(role==='department_admin'&&dept)out.push(...baseScopes.slice(1));else out.push(baseScopes[4]);return out}
-function renderTabs(){const box=document.getElementById('tabs'),items=availableScopes();if(!items.some(x=>x[0]===scope))scope=items[0][0];box.replaceChildren();for(const [s,l] of items){const b=document.createElement('button');b.textContent=l;b.className=s===scope?'active':'';b.onclick=()=>{scope=s;statusFilter='';renderTabs();loadScope()};box.append(b)}}
-async function loadScope(){const list=document.getElementById('list');list.innerHTML='<div class="empty">กำลังโหลด...</div>';document.getElementById('resultCount').textContent='';try{const q=document.getElementById('globalSearch').value.trim();const r=await QA.api.getWorklist(scope,q);lastJobs=r.jobs||[];statusFilter='';render(lastJobs)}catch(e){lastJobs=[];document.getElementById('summary').replaceChildren();list.innerHTML='<div class="empty">'+QA.escape(QA.errorOf(e).message)+'</div>'}}
-function render(jobs){const list=document.getElementById('list'),sum=document.getElementById('summary');list.replaceChildren();sum.replaceChildren();const counts={OPEN:0,IN_PROGRESS:0,WAITING_REVIEW:0,REWORK:0,CLOSED:0,CANCELLED:0};jobs.forEach(j=>{counts[j.status]=(counts[j.status]||0)+1});for(const [s,n] of Object.entries(counts)){if(!n)continue;const x=document.createElement('button');x.type='button';x.className='pill'+(statusFilter===s?' active':'');x.textContent=QA.statusInfo(s).label+' : '+n;x.onclick=()=>{statusFilter=statusFilter===s?'':s;render(lastJobs)};sum.append(x)}const shown=statusFilter?jobs.filter(j=>j.status===statusFilter):jobs;document.getElementById('resultCount').textContent='พบ '+shown.length+' ใบงาน'+(statusFilter?' · กรอง '+QA.statusInfo(statusFilter).label:'');if(!shown.length){list.innerHTML='<div class="empty">ไม่พบใบงานตามเงื่อนไข</div>';return}shown.forEach(j=>{const c=document.createElement('article');c.className='job';const left=document.createElement('div');left.innerHTML='<div class="route">'+QA.escape(j.fromDepartment)+' → '+QA.escape(j.toDepartment)+'</div><div><b>'+QA.escape(j.jobId)+'</b></div><div class="meta">ผู้แจ้ง: '+QA.escape(j.issuerName)+' · '+QA.escape(j.createdDateTime)+'<br>'+QA.escape(j.category)+' · '+QA.escape(j.priority)+'</div><a class="open" href="'+QA.escape(QA.jobUrl(j.jobId))+'">เปิดใบงาน</a>';const right=document.createElement('div');QA.setStatusBadge(right,j.status);c.append(left,right);list.append(c)})}
+function availableScopes(){const role=QA.profile.role,dept=String(QA.profile.department||'').trim();if(role==='system_admin')return [['all','ทั้งหมด'],...baseScopes];if(role==='viewer')return dept?[['all','ทั้งหมด'],baseScopes[1]]:[['all','ทั้งหมด']];const out=[baseScopes[0]];if(role==='department_admin'&&dept)out.push(...baseScopes.slice(1));else if(dept)out.push(baseScopes[1],baseScopes[3],baseScopes[4]);return out}
+function renderTabs(){const box=document.getElementById('tabs'),items=availableScopes();if(!items.some(x=>x[0]===scope))scope=items[0][0];box.replaceChildren();for(const [s,l] of items){const b=document.createElement('button');b.textContent=l;b.className=s===scope?'active':'';b.onclick=()=>{scope=s;statusFilter='';summarySelection='';renderTabs();loadScope()};box.append(b)}}
+async function loadScope(preserveStatus=false){
+ const requestId=++worklistRequestId;
+ const list=document.getElementById('list');
+ list.innerHTML='<div class="empty">กำลังโหลด...</div>';
+ document.getElementById('resultCount').textContent='';
+ const requestedScope=scope;
+ const q=document.getElementById('globalSearch').value.trim();
+ try{
+  const [legacy,next]=await Promise.allSettled([QA.api.getWorklist(requestedScope,q),QA.client.rpc('qa_vnext_worklist',{p_scope:requestedScope,p_query:q})]);
+  if(requestId!==worklistRequestId)return;
+  // Both sources are required: silently dropping legacy jobs produces an incomplete list.
+  if(legacy.status==='rejected')throw legacy.reason;
+  if(next.status==='rejected')throw next.reason;
+  if(next.value?.error)throw next.value.error;
+  // Malformed/null RPC responses must not silently turn into an empty worklist.
+  if(!Array.isArray(next.value?.data)||!Array.isArray(legacy.value?.jobs))
+   throw new Error('รูปแบบข้อมูลรายการใบงานไม่ถูกต้อง กรุณาลองใหม่');
+  const newRows=next.value.data;
+  const routed=new Set(newRows.map(x=>String(x.jobId)));
+  const oldRows=legacy.value.jobs;
+  lastJobs=[...oldRows.filter(x=>!routed.has(String(x.jobId))),...newRows];
+  if(!preserveStatus)statusFilter='';
+  render(lastJobs);
+  // Reaching either RPC limit does not prove that the entire result set was returned.
+  // Preserve the results but clearly warn rather than presenting the count as complete.
+  if(oldRows.length>=200||newRows.length>=1000){
+   const note=document.createElement('div');note.className='empty';
+   note.textContent='รายการอาจไม่ครบ เนื่องจากจำนวนงานถึงขีดจำกัดของระบบค้นหา กรุณาค้นหาให้แคบลง';
+   note.setAttribute('role','status');list.prepend(note);
+   document.getElementById('resultCount').textContent+=' · อาจมีรายการเพิ่มเติม';
+  }
+ }catch(e){
+  if(requestId!==worklistRequestId)return;
+  lastJobs=[];
+  document.getElementById('resultCount').textContent='';
+  list.innerHTML='<div class="empty">ไม่สามารถโหลดรายการใบงานครบถ้วน: '+QA.escape(QA.errorOf(e).message)+'</div>';
+ }
+}
+function normalizeStatus(x){const v=String(x||'').toUpperCase();return v==='OPEN'||v==='IN_PROGRESS'||v==='REWORK'?'IN_PROGRESS':v==='WAITING_REVIEW'?'WAITING_REVIEW':v==='CLOSED'?'CLOSED':'OTHER'}
+let receivedCounts=null, summaryRequestId=0, summaryError='';
+async function loadReceivedSummary(){
+ const requestId=++summaryRequestId;
+ const box=document.getElementById('summary');
+ receivedCounts=null;summaryError='กำลังโหลดสรุปงานเข้าแผนก...';renderSummary();
+ try{
+  const dept=String(QA.profile.department||'').trim();
+  if(!dept){summaryError='ยังไม่ได้กำหนดแผนก';renderSummary();return}
+  const data=await QA.client.rpc('qa_v38_incoming_status_counts');
+  if(requestId!==summaryRequestId)return;
+  if(data.error)throw data.error;
+  const counts=data.data;
+  if(!counts||typeof counts!=='object'||Array.isArray(counts)||!['total','in_progress','waiting_review','closed'].every(k=>Number.isFinite(Number(counts[k]))&&Number(counts[k])>=0))throw new Error('ข้อมูลสรุปไม่ถูกต้อง');
+  receivedCounts=counts;summaryError='';renderSummary();
+ }catch(e){if(requestId!==summaryRequestId)return;receivedCounts=null;summaryError='ไม่สามารถโหลดสรุปงานเข้าแผนก: '+QA.errorOf(e).message;renderSummary()}
+}
+function renderSummary(){
+ const box=document.getElementById('summary');if(!receivedCounts){box.replaceChildren();const msg=document.createElement('div');msg.className='empty';msg.textContent=summaryError||'ยังไม่มีข้อมูลสรุป';box.append(msg);return;}
+ box.replaceChildren();
+ const nums={all:receivedCounts.total,IN_PROGRESS:receivedCounts.in_progress,WAITING_REVIEW:receivedCounts.waiting_review,CLOSED:receivedCounts.closed};
+ for(const [status,label] of [['all','งานทั้งหมด'],['IN_PROGRESS','กำลังดำเนินการ'],['WAITING_REVIEW','รอตรวจสอบ'],['CLOSED','สำเร็จ']]){
+  const card=document.createElement('button');card.type='button';card.className='pill'+(summarySelection===status?' active':'');
+  card.innerHTML='<span class="sum-label">'+label+'</span><span class="sum-num">'+Number(nums[status]||0).toLocaleString('th-TH')+'</span>';
+  card.setAttribute('aria-pressed',summarySelection===status?'true':'false');
+  card.disabled=!availableScopes().some(([key])=>key==='received');
+  card.onclick=()=>{
+   if(!availableScopes().some(([key])=>key==='received'))return;
+   if(summarySelection===status){summarySelection='';statusFilter='';scope=priorScope||scope;priorScope='';renderTabs();loadScope(true);return}
+   if(!summarySelection)priorScope=scope;summarySelection=status;scope='received';statusFilter=status==='all'?'':status;renderTabs();loadScope(true);
+  };box.append(card)
+ }
+}
+function render(jobs){const list=document.getElementById('list');list.replaceChildren();renderSummary();const eligibleJobs=summarySelection?jobs.filter(j=>String(j.status||'').toUpperCase()!=='CANCELLED'):jobs;const shown=statusFilter?eligibleJobs.filter(j=>normalizeStatus(j.status)===statusFilter):eligibleJobs;document.getElementById('resultCount').textContent='พบ '+shown.length+' รายการ'+(statusFilter?' · กรองตามสถานะ':'');if(!shown.length){list.innerHTML='<div class="empty">ไม่พบใบงานตามเงื่อนไข</div>';return}shown.forEach(j=>{
+  const c=document.createElement('article');c.className='job';c.tabIndex=0;c.setAttribute('role','link');
+  const url=j.vnext?'vnext-job.html?id='+encodeURIComponent(j.jobId):QA.jobUrl(j.jobId);
+  c.addEventListener('click',()=>{window.location.href=url});
+  c.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();window.location.href=url}});
+  const left=document.createElement('div');
+  left.innerHTML='<div class="route">'+QA.escape(j.carCode||j.jobId)+'</div><div class="meta">'+QA.escape(j.fromDepartment)+' → '+QA.escape(j.toDepartment)+'</div>';
+  const right=document.createElement('div');right.className='job-side';
+  QA.setStatusBadge(right,j.status);if(j.status==='WAITING_REVIEW'){const b=right.querySelector('.status')||right.firstElementChild;if(b)b.textContent='รอตรวจสอบ'}
+  const when=document.createElement('span');when.className='job-date';when.textContent=j.createdDateTime||'';right.appendChild(when);
+  c.append(left,right);list.append(c);
+})}
 </script>
 </body></html>
