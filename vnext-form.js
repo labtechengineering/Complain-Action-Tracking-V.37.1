@@ -18,6 +18,20 @@
  .vn-source-buttons{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 12px}.vn-source-buttons button{background:#f1f5f9;color:#1f2937;border:1px solid #cbd5e1;border-radius:9px;padding:10px 18px;font-weight:700;cursor:pointer}.vn-source-buttons button.active{background:#14274c;color:#fff;border-color:#14274c}
  .vn-checks label{font-size:13px;font-weight:700;position:relative;cursor:pointer}.vn-checks label:has(input:checked){background:#14274c;color:#fff;border-color:#14274c}.vn-checks input{position:absolute;opacity:0;width:0;height:0}
  .vn-file-grid{display:flex;flex-wrap:wrap;gap:9px;margin:10px 0}.vn-file-item{width:125px;border:1px solid #e2e8f0;background:#f8fafc;border-radius:9px;padding:6px}.vn-file-item img,.vn-file-item video{width:100%;height:78px;object-fit:contain;border-radius:6px;background:white}.vn-file-item textarea{width:100%;font-size:12px;min-height:53px;resize:vertical}.vn-file-item button{font-size:12px;padding:4px 7px}.vn-file-item span{display:block;height:78px;text-align:center;padding-top:20px;color:#64748b}
+ /* V38: visual spacing inside each issue only; no changes to form logic */
+ .vn-card{padding:20px 18px;margin:16px 0}
+ .vn-card > .vn-row:first-child{margin-bottom:18px}
+ .vn-card > .vn-row:first-child h3{margin:0;line-height:1.5}
+ .vn-card > label{display:block;margin:0 0 18px;line-height:1.55}
+ .vn-card > label > .vn-category,.vn-card > label > .vn-detail{display:block;margin-top:8px;margin-bottom:0}
+ .vn-card > strong{display:block;line-height:1.55;margin:2px 0 11px}
+ .vn-card > .vn-checks{margin-bottom:20px}
+ .vn-card > .vn-row:not(:first-child){margin-bottom:12px}
+ .vn-card > .vn-row:not(:first-child) label{line-height:1.5;margin-bottom:0}
+ .vn-card > .vn-row:not(:first-child) input[type=file]{margin-top:9px}
+ .vn-card > .vn-files{margin:12px 0 10px}
+ .vn-card > .vn-file-grid{margin:12px 0 2px}
+ .vn-card .vn-file-item textarea{margin-top:7px}
  `;document.head.append(style);
  function create(){return {id:++seq,images:[],video:[],notes:{},category:'',description:'',departments:[]};}
  problems.push(create());
