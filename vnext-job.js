@@ -14,7 +14,15 @@ async function mediaFor(issueIds,assignmentId,canEdit=false){const permitted=med
 async function render(){if(!jobId){setNote('ไม่พบหมายเลขงาน',true);return;}
  try{detail=await rpc('qa_vnext_job_detail',{p_job_id:jobId});media=await rpc('qa_vnext_media_list',{p_job_id:jobId});
  if(!Array.isArray(media))media=[];
- $('details').innerHTML=`<h2>ข้อมูลการแจ้งเรื่อง</h2><div class="row"><p><b>ประเภทงาน:</b> ${esc(detail.source_type||'-')}</p><p><b>Serial Number:</b> ${esc(detail.serial_no||'-')}</p><p><b>ฝ่ายผู้แจ้ง:</b> ${esc(detail.from_department||'-')}</p></div><div class="row"><p><b>Customer Name:</b> ${esc(detail.customer_name||'-')}</p><p><b>Country:</b> ${esc(detail.country||'-')}</p></div><p><b>Remark:</b> ${esc(detail.requester_remark||'-')}</p><p class="muted">วันที่สร้าง: ${esc(detail.created_at?new Date(detail.created_at).toLocaleString('th-TH'):'-')}</p>`;
+ $('details').innerHTML=`<h2>ข้อมูลการแจ้งเรื่อง</h2><div class="job-general-grid">
+ <div class="job-general-field"><span class="job-general-label">ประเภทงาน:</span><span class="job-general-value">${esc(detail.source_type||'-')}</span></div>
+ <div class="job-general-field"><span class="job-general-label">Serial Number:</span><span class="job-general-value">${esc(detail.serial_no||'-')}</span></div>
+ <div class="job-general-field"><span class="job-general-label">ฝ่ายผู้แจ้ง:</span><span class="job-general-value">${esc(detail.from_department||'-')}</span></div>
+ <div class="job-general-field"><span class="job-general-label">Customer Name:</span><span class="job-general-value">${esc(detail.customer_name||'-')}</span></div>
+ <div class="job-general-field"><span class="job-general-label">Country:</span><span class="job-general-value">${esc(detail.country||'-')}</span></div>
+ <div class="job-general-field job-general-wide"><span class="job-general-label">Remark:</span><span class="job-general-value">${esc(detail.requester_remark||'-')}</span></div>
+ <div class="job-general-field job-general-wide job-general-date"><span class="job-general-label">วันที่สร้าง:</span><span class="job-general-value">${esc(detail.created_at?new Date(detail.created_at).toLocaleString('th-TH'):'-')}</span></div>
+ </div>`;
  const list=$('assignments');list.replaceChildren();if(!detail.assignments?.length){list.innerHTML='<section class="sheet">ใบงานนี้ยังไม่แยกเป็นหลายฝ่าย <a href="job.html?id='+encodeURIComponent(jobId)+'">เปิดหน้าใบงานเดิม</a></section>';return;}
  for(const a of detail.assignments){const mine=QA.profile?.department===a.department_code||QA.profile?.role==='system_admin';const head=QA.profile?.role==='system_admin'||(mine&&QA.profile?.role==='department_admin');
  const isRequester=detail.is_requester||QA.profile?.role==='system_admin';const el=document.createElement('section');el.className='sheet department-panel';el.dataset.assignment=a.assignment_id;
@@ -74,6 +82,7 @@ function renderTracker(d){
  const steps=['OPEN','IN_PROGRESS','WAITING_REVIEW','CLOSED'],current=steps.indexOf(status);
  $('jobTrackerNumber').textContent=d.car_code||d.job_id;
  document.querySelectorAll('[data-step]').forEach((el,i)=>{el.classList.toggle('done',i<current);el.classList.toggle('current',i===current)});
+ document.querySelector('.tracker-stages')?.style.setProperty('--track-progress',String(current*100/3*0.75)+'%');
  const chips=$('departmentChips');chips.replaceChildren();
  all.forEach((a,i)=>{const b=document.createElement('button');b.type='button';b.textContent=a.department_code+' · '+label(a.status);b.onclick=()=>{panels.forEach((p,j)=>{p.hidden=j!==i});[...chips.children].forEach((c,j)=>c.classList.toggle('active',j===i));panels[i]?.scrollIntoView({behavior:'smooth',block:'start'});};chips.append(b);panels[i].hidden=i!==0;b.classList.toggle('active',i===0)});
 }

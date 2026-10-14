@@ -131,13 +131,14 @@
   await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';s.onload=resolve;s.onerror=()=>reject(new Error('ไม่สามารถโหลดตัวสร้างภาพ LINE'));document.head.append(s);});}
  async function makeJobImage(jobId){await loadScreenshot();
   const matching=problems.map((p,i)=>({p,i}));
-  const host=document.createElement('div');host.style.cssText='position:absolute;left:0;top:0;width:960px;background:white;padding:34px;font:18px Arial,Tahoma,sans-serif;z-index:999999;color:#172337';
-  const heading=document.createElement('div');heading.innerHTML='<h1 style="font-size:30px;margin:0">Complain &amp; Action Tracking</h1><p style="font-size:18px;margin:8px 0 18px">ใบแจ้งงาน: <b>'+esc(jobId)+'</b> &nbsp; ประเภทงาน: <b>'+esc($('vnSource').value)+'</b></p>';
+  const host=document.createElement('div');host.style.cssText='position:absolute;left:0;top:0;width:960px;background:#fff;padding:36px;font:18px Arial,Tahoma,sans-serif;line-height:1.65;z-index:999999;color:#172337';
+  const heading=document.createElement('div');heading.innerHTML='<h1 style="font-size:29px;line-height:1.35;margin:0 0 15px">Complain &amp; Action Tracking</h1><div style="font-size:18px;margin:0 0 22px;line-height:1.6"><b>ใบแจ้งงาน:</b> '+esc(jobId)+'<span style="display:inline-block;margin-left:24px"><b>ประเภทงาน:</b> '+esc($('vnSource').value)+'</span></div>';
   host.append(heading);
-  const hdr=document.createElement('div');hdr.style.cssText='padding:15px;border:1px solid #d1d5db;border-radius:9px;margin-bottom:18px';
-  hdr.innerHTML='<b>1. ข้อมูลการแจ้งเรื่อง</b><p>ประเภท: '+esc($('vnSource').value)+' &nbsp; Serial: '+esc($('serialNo').value)+'<br>Customer: '+esc($('vnCustomer').value)+' &nbsp; Country: '+esc($('vnCountry').value)+'<br>Remark: '+esc($('vnRemark').value)+'</p>';host.append(hdr);
-  for(const {p,i} of matching){const block=document.createElement('section');block.style.cssText='padding:15px;border:1px solid #d1d5db;border-radius:9px;margin-bottom:18px;page-break-inside:avoid';
-   block.innerHTML='<b>2. รายละเอียดปัญหา '+(i+1)+'</b><p><b>Category:</b> '+esc(p.category)+'</p><p><b>ฝ่ายรับเรื่อง:</b> '+esc(p.departments.join(', '))+'</p><p style="white-space:pre-wrap;overflow-wrap:anywhere">'+esc(p.description)+'</p>';
+  const hdr=document.createElement('div');hdr.style.cssText='padding:20px 22px;border:1px solid #d1d5db;border-radius:10px;margin-bottom:22px';
+  const infoField=(name,value)=>'<div style="display:grid;grid-template-columns:134px minmax(0,1fr);column-gap:10px;align-items:start;line-height:1.6;overflow-wrap:anywhere"><b>'+name+'</b><span style="white-space:pre-wrap">'+esc(value||'-')+'</span></div>';
+  hdr.innerHTML='<b style="display:block;font-size:20px;margin:0 0 16px">1. ข้อมูลการแจ้งเรื่อง</b><div style="display:grid;grid-template-columns:1fr 1fr;gap:11px 22px">'+infoField('ประเภท:', $('vnSource').value)+infoField('Serial:', $('serialNo').value)+infoField('Customer:', $('vnCustomer').value)+infoField('Country:', $('vnCountry').value)+'</div><div style="margin-top:12px">'+infoField('Remark:', $('vnRemark').value)+'</div>';host.append(hdr);
+  for(const {p,i} of matching){const block=document.createElement('section');block.style.cssText='padding:20px 22px;border:1px solid #d1d5db;border-radius:10px;margin-bottom:22px;page-break-inside:avoid';
+   block.innerHTML='<b style="display:block;font-size:20px;margin-bottom:16px">2. รายละเอียดปัญหา '+(i+1)+'</b><div style="display:grid;gap:11px;margin-bottom:14px">'+infoField('Category:',p.category)+infoField('ฝ่ายรับเรื่อง:',p.departments.join(', '))+'</div><div style="white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65;margin:15px 0">'+esc(p.description)+'</div>';
    const row=document.createElement('div');row.style.cssText='display:flex;gap:10px;flex-wrap:wrap';
    for(const [fileIndex,f] of p.images.entries()){
     const item=document.createElement('div');item.style.cssText='width:170px;max-width:170px;break-inside:avoid;overflow-wrap:anywhere';
