@@ -47,6 +47,11 @@
  for(const id of ['issuerName','fromDepartment','toDepartment','priority','impact','location','downtimeMin']){
   const el=$(id);if(el?.closest('.field'))el.closest('.field').style.display='none';
  }
+ // The legacy single-issue customer fields are retained for edit mode only.
+ // New multi-issue submissions use vnCustomer/vnCountry as their single source of truth.
+ for(const id of ['customerNameInput','countryInput']){
+  const legacy=$(id);if(legacy?.closest('.field'))legacy.closest('.field').style.display='none';
+ }
  const top=$('serialNo')?.closest('.card');const vnHeader=$('vnHeader');if(top&&vnHeader)top.append(vnHeader);
  const remark=$('vnRemark')?.closest('label');if(top&&remark)top.append(remark);
  const source=$('vnSource');source.parentElement.style.display='none';
