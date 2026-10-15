@@ -24,7 +24,7 @@
   // Resolve links from this script's folder, never from the domain root.
   // This works both at / and at /repository-name/ on GitHub Pages.
   const appBase = new URL('.', document.currentScript?.src || location.href);
-  const pageFiles = Object.freeze({create:'create.html', index:'dashboard.html',
+  const pageFiles = Object.freeze({create:'create.html', index:'index.html',
     job:'job.html', history:'history.html', dashboard:'dashboard.html', work:'work.html', settings:'settings.html', profile:'profile.html', signup:'signup.html', reset:'reset-password.html', forcePassword:'force-password.html', login:'login.html'});
   const pageName = input => {
     try {
