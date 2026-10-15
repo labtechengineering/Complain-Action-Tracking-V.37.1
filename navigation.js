@@ -4,9 +4,9 @@ function buildAppNavHtml_(baseUrl,activePage){
   const p=QA.profile||{}, role=p.role||'', isSystem=role==='system_admin', isDept=role==='department_admin';
   const links=[];
   const add=(page,label,icon,show=true)=>{if(!show)return;links.push('<a class="qa-side-link '+(activePage===page?'active':'')+'" href="'+htmlEscapeServer_(QA.pageUrl(page))+'"><span class="qa-side-icon">'+icon+'</span><span>'+label+'</span></a>');};
+  add('dashboard','หน้าแรก','▥');
   add('work','ใบงาน','⌂');
-  add('create','แจ้งงาน','＋',role==='user'||role==='department_admin');
-  add('dashboard','Dashboard','▥',isDept||isSystem||role==='viewer');
+  add('create','แจ้งงาน','＋',role==='user'||role==='department_admin'||isSystem);
   add('profile','Profile','👤');
   add('settings','Settings','⚙',isSystem);
   return `<style>

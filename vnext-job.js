@@ -31,7 +31,7 @@ async function render(){if(!jobId){setNote('ไม่พบหมายเลข
  const issueIds=(a.issues||[]).map(i=>i.issue_id);
  const issueEditable=Boolean(detail.can_manage_issues);const responseEditable=mine&&a.status==='IN_PROGRESS'&&!a.approval_requested_at;
  const blocks=await Promise.all((a.issues||[]).map(async(i,k)=>`<article class="issue"><h3>ปัญหา ${esc(i.issue_number)} — ${esc(i.category_code)}</h3><p>${esc(i.description)}</p>${issueEditable?`<div class="no-print issue-edit-controls" hidden><label>แก้ไขรายละเอียดปัญหา<textarea class="issue-edit-description" data-issue-id="${esc(i.issue_id)}" maxlength="20000">${esc(i.description)}</textarea></label><button type="button" class="issue-edit-save" data-issue-id="${esc(i.issue_id)}">บันทึกการแก้ไขปัญหา</button></div>`:""}<b>ไฟล์แนบจากผู้แจ้ง</b>${await mediaFor([i.issue_id],null,issueEditable)}${issueEditable?`<div class=\"no-print\"><label>เพิ่มไฟล์ของปัญหา ${i.issue_number}<input class=\"issueFiles\" data-issue-number=\"${i.issue_number}\" type=\"file\" accept=\"image/jpeg,image/png,image/webp,video/mp4,video/webm\" multiple></label></div>`:''}</article>`));
- const showResponse=mine||a.status!=='OPEN'||Boolean(a.responsible_user);
+ const showResponse=a.status!=='OPEN'||Boolean(a.responsible_user||a.accepted_at);
  const responseMedia=showResponse?await mediaFor([],a.assignment_id,responseEditable):'';
  el.innerHTML=`<h2>2. รายละเอียดปัญหา — ${esc(a.department_code)} <span class="badge">${esc(label(a.status))}</span></h2>${blocks.join('')}
  ${showResponse?`<h2>3. การดำเนินการของฝ่ายรับเรื่อง</h2><p><b>ผู้รับผิดชอบหลัก:</b> ${esc(a.responsible_name||a.responsible_user||'ยังไม่รับงาน')}</p>

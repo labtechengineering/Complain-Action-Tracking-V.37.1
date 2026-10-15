@@ -24,14 +24,14 @@
   // Resolve links from this script's folder, never from the domain root.
   // This works both at / and at /repository-name/ on GitHub Pages.
   const appBase = new URL('.', document.currentScript?.src || location.href);
-  const pageFiles = Object.freeze({create:'index.html', index:'index.html',
+  const pageFiles = Object.freeze({create:'create.html', index:'dashboard.html',
     job:'job.html', history:'history.html', dashboard:'dashboard.html', work:'work.html', settings:'settings.html', profile:'profile.html', signup:'signup.html', reset:'reset-password.html', forcePassword:'force-password.html', login:'login.html'});
   const pageName = input => {
     try {
       const u = new URL(input || location.href, appBase);
       if(u.origin!==appBase.origin || !u.pathname.startsWith(appBase.pathname)) return '';
       const tail=u.pathname.slice(appBase.pathname.length);
-      if(!tail || tail==='index.html' || tail==='index') return 'create';
+      if(!tail || tail==='index.html' || tail==='index') return 'dashboard';
       return Object.keys(pageFiles).find(k => tail===pageFiles[k] || tail===k) || '';
     } catch {return '';}
   };
@@ -152,7 +152,7 @@
     document.querySelectorAll('form input,form select,form textarea,form button').forEach(el=>el.disabled=true);
     if(QA.client){const out=document.createElement('button');out.type='button';out.textContent='Sign out / Login';out.onclick=()=>QA.signOut();document.getElementById('qa-system-note').append(out);}
   }
-  function safeNext(raw, defaultPage='work') {
+  function safeNext(raw, defaultPage='dashboard') {
     const fallback=QA.pageUrl(defaultPage);
     try {
       if(!raw) return fallback;
@@ -169,7 +169,7 @@
     let next;
     if(id && ['create','job'].includes(page)) next=QA.jobUrl(id);
     else if(['create','history','dashboard','work','settings','profile'].includes(page)) next=QA.pageUrl(page,Object.fromEntries(new URLSearchParams(location.search)));
-    else next=QA.pageUrl('work');
+    else next=QA.pageUrl('dashboard');
     return QA.pageUrl('login',{next});
   };
   function withTimeout(promise, ms, code='REQUEST_TIMEOUT') {
@@ -240,7 +240,7 @@
             document.getElementById('password').value='';
             box.textContent='เข้าสู่ระบบสำเร็จ กำลังเปิดหน้าใบงาน...';
             if(profile.must_change_password) location.replace(QA.pageUrl('forcePassword'));
-            else location.replace(QA.pageUrl('work'));
+            else location.replace(QA.pageUrl('dashboard'));
           } catch(err) {
             box.style.color='#b91c1c';
             const code=String(err?.message||err||'');
@@ -296,7 +296,7 @@
             success.hidden=false;
             if(signup.session){
               success.innerHTML='<b>สมัครสมาชิกสำเร็จ</b><br>บัญชีพร้อมใช้งานแล้ว กำลังเข้าสู่ระบบ...';
-              setTimeout(()=>location.replace(QA.pageUrl('work')),600);
+              setTimeout(()=>location.replace(QA.pageUrl('dashboard')),600);
             }else{
               success.innerHTML='<b>สมัครสมาชิกสำเร็จ</b><br>ระบบกำลังรอการยืนยันอีเมล กรุณาตรวจ Inbox แล้วกดลิงก์ยืนยันก่อนเข้าสู่ระบบ<br><br><a href="'+QA.pageUrl('login')+'">กลับหน้า Login</a>';
             }

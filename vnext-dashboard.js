@@ -1,4 +1,4 @@
-(()=>{'use strict';const $=id=>document.getElementById(id);let rows=[],lastLabel='ทั้งหมด',dashboardRequestId=0;
+(()=>{'use strict';const $=id=>document.getElementById(id);let rows=[],lastLabel='ทั้งหมด',dashboardRequestId=0,selectedScope='all',searchQuery='';
 const colors=['#F59E0B','#3B82F6','#16A34A'];
 const num=v=>Number(v)||0;
 async function rpc(name,args){const {data,error}=await QA.client.rpc(name,args);if(error)throw error;return data;}
@@ -11,7 +11,16 @@ function initFilter(){const d=bangkokNow(),iso=dateStr(new Date(Date.UTC(d.getFu
  $('filter').onchange=()=>{toggle();closeResults();};toggle();$('refresh').onclick=refresh;
  for(const id of ['day','week','month','year'])$(id).addEventListener('change',closeResults);
  document.querySelectorAll('.filter-card').forEach(el=>{const activate=()=>toggleResults('',el.dataset.status);el.addEventListener('click',activate);el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();activate()}})});
- $('closeFiltered').onclick=closeResults;const exportBtn=$('exportExcel');if(exportBtn){exportBtn.hidden=!['system_admin','department_admin'].includes(QA.profile?.role);exportBtn.onclick=exportExcel;}}
+ $('closeFiltered').onclick=closeResults;
+ const scope=$('dashScope'),search=$('dashSearch');
+ const role=QA.profile?.role||'';
+ if(role==='system_admin')scope.value='all';else if(role==='viewer')scope.value=QA.profile?.department?'received':'all';else scope.value='received';
+ for(const option of scope.options){if(role!=='system_admin'&&role!=='viewer'&&option.value==='all')option.remove();if(role==='viewer'&&!['all','received'].includes(option.value))option.remove()}
+ selectedScope=scope.value;
+ const searchAction=()=>{selectedScope=scope.value;searchQuery=search.value.trim();closeResults();toggleResults('','all');};
+ $('dashSearchBtn').onclick=searchAction;
+ search.addEventListener('keydown',e=>{if(e.key==='Enter')searchAction()});
+ scope.addEventListener('change',()=>{selectedScope=scope.value;searchQuery=search.value.trim();closeResults();toggleResults('','all')});const exportBtn=$('exportExcel');if(exportBtn){exportBtn.hidden=!['system_admin','department_admin'].includes(QA.profile?.role);exportBtn.onclick=exportExcel;}}
 function toggle(){for(const id of ['week','day','month','year'])$(id).hidden=id!==$('filter').value;}
 function range(){const mode=$('filter').value;
  if(mode==='all')return null;
@@ -47,9 +56,9 @@ function render(){const sum=key=>rows.reduce((a,r)=>a+num(r[key]),0);
  if(!rows.length){plot.textContent='ยังไม่ได้กำหนดฝ่ายรับเรื่องใน Settings';return;}
  for(const r of rows){const item=document.createElement('div');item.className='item';const values=[num(r.in_progress),num(r.waiting_review),num(r.completed)],total=num(r.total);
  const totals=document.createElement('div');totals.className='total';totals.textContent=total||'0';
- const column=document.createElement('div');column.className='columns';column.style.height=(280*total/max)+'px';
+ const column=document.createElement('div');column.className='columns';column.style.height=(175*total/max)+'px';
  values.forEach((n,i)=>{if(n===0)return;const segment=document.createElement('div');segment.className='segment';segment.style.background=colors[i];segment.style.flex=n;segment.tabIndex=0;segment.setAttribute('role','button');segment.title=n+' งาน · คลิกแสดงรายการ';segment.textContent=n;const status=['IN_PROGRESS','WAITING_REVIEW','CLOSED'][i];const code=r.department_code;segment.onclick=()=>toggleResults(code,status);segment.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggleResults(code,status)}};column.append(segment);});
- const label=document.createElement('div');label.className='dept';label.textContent=r.department_code||'-';
+ const label=document.createElement('div');label.className='dept';label.textContent=r.department_code;
  item.append(totals,column,label);plot.append(item);}}
 function draw(){const data=rows,canvas=document.createElement('canvas');const width=Math.max(1080,180+data.length*140),height=760,scale=2;canvas.width=width*scale;canvas.height=height*scale;
  const c=canvas.getContext('2d');c.scale(scale,scale);c.fillStyle='#fff';c.fillRect(0,0,width,height);c.fillStyle='#172337';c.font='bold 28px Arial';c.fillText('Complain Dashboard',36,51);c.font='16px Arial';c.fillStyle='#526277';c.fillText(lastLabel,36,82);
@@ -62,19 +71,19 @@ function draw(){const data=rows,canvas=document.createElement('canvas');const wi
  data.forEach((r,i)=>{const bw=Math.min(75,chartW/(Math.max(1,data.length)*1.7)),x=left+(i+.5)*chartW/data.length-bw/2;
  let y=base;[num(r.in_progress),num(r.waiting_review),num(r.completed)].forEach((v,j)=>{if(!v)return;const h=(base-top)*v/max;y-=h;c.fillStyle=colors[j];c.fillRect(x,y,bw,h);if(h>=18){c.fillStyle='#fff';c.font='bold 14px Arial';c.textAlign='center';c.fillText(String(v),x+bw/2,y+h/2+5);c.textAlign='left';}});
  c.fillStyle='#172337';c.font='bold 14px Arial';c.textAlign='center';c.fillText(String(num(r.total)),x+bw/2,y-8);
- c.font='13px Arial';c.fillText(String(r.department_code||'-'),x+bw/2,base+27);c.textAlign='left';});
+ c.font='13px Arial';c.fillText(String(r.department_code).slice(0,20),x+bw/2,base+27);c.textAlign='left';});
  c.fillStyle='#64748b';c.font='12px Arial';c.fillText('งานทั้งหมด ณ เวลาที่สร้างรายงาน · จำนวนหนึ่งงานต่อหนึ่งฝ่ายรับเรื่อง',36,737);return canvas;}
 let activeFilter=null,resultsRequestId=0;
 function closeResults(){resultsRequestId++;activeFilter=null;const pane=$('filtered');if(pane)pane.hidden=true;document.querySelectorAll('.filter-card').forEach(x=>x.classList.remove('active'));}
 function normStatus(v){const s=String(v||'').toUpperCase();return ['OPEN','IN_PROGRESS','REWORK'].includes(s)?'IN_PROGRESS':s;}
 function withinPeriod(iso){const bounds=range();if(!bounds)return true;const millis=Date.parse(iso);return Number.isFinite(millis)&&millis>=Date.parse(bounds.p_start)&&millis<Date.parse(bounds.p_end);}
-async function toggleResults(dept,status){const key=dept+'|'+status;if(activeFilter===key){closeResults();return}activeFilter=key;const requestId=++resultsRequestId;
+async function toggleResults(dept,status){const key=dept+'|'+status+'|'+selectedScope+'|'+searchQuery;if(activeFilter===key){closeResults();return}activeFilter=key;const requestId=++resultsRequestId;
  const pane=$('filtered');pane.hidden=false;$('filteredTitle').textContent=(dept?dept+' · ':'')+({all:'งานทั้งหมด',IN_PROGRESS:'กำลังดำเนินการ',WAITING_REVIEW:'รอตรวจสอบ',CLOSED:'สำเร็จ'}[status]||status);
  document.querySelectorAll('.filter-card').forEach(x=>x.classList.toggle('active',!dept&&x.dataset.status===status));
  const box=$('filteredResults');box.replaceChildren();box.textContent='กำลังค้นหา...';
  try{
-  const scope=QA.profile.role==='system_admin'||QA.profile.role==='viewer'?'all':'received';
-  const [legacy,vnext]=await Promise.allSettled([QA.api.getWorklist(scope,''),rpc('qa_vnext_worklist',{p_scope:scope,p_query:''})]);
+  const scope=selectedScope||'received';
+  const [legacy,vnext]=await Promise.allSettled([QA.api.getWorklist(scope,searchQuery),rpc('qa_vnext_worklist',{p_scope:scope,p_query:searchQuery})]);
   if(legacy.status==='rejected'||vnext.status==='rejected')throw new Error('โหลดรายการจากฐานข้อมูลไม่ครบ กรุณาลองใหม่');
   if(!Array.isArray(legacy.value?.jobs)||!Array.isArray(vnext.value))throw new Error('รูปแบบข้อมูลรายการใบงานไม่ถูกต้อง');
   const a=legacy.value.jobs;const b=vnext.value;
@@ -82,22 +91,9 @@ async function toggleResults(dept,status){const key=dept+'|'+status;if(activeFil
   const filtered=all.filter(x=>(!dept||String(x.toDepartment||'').split(/[;,|]/).map(s=>s.trim()).includes(dept))&&(status==='all'||normStatus(x.status)===status)&&withinPeriod(x.createdDateTime||x.created_at));
   if(requestId!==resultsRequestId)return;
   box.replaceChildren();if(!filtered.length){box.innerHTML='<div class="filtered-empty">ไม่พบใบงานในเงื่อนไขนี้</div>';return}
-  for(const j of filtered){
-   const card=document.createElement('a');card.className='filtered-card';card.href=j.vnext?'vnext-job.html?id='+encodeURIComponent(j.jobId):QA.jobUrl(j.jobId);
-   const left=document.createElement('div');
-   const code=document.createElement('div');code.className='job-route';code.textContent=j.carCode||j.jobId;
-   const route=document.createElement('div');route.className='job-meta';route.textContent=(j.fromDepartment||'-')+' → '+(j.toDepartment||'-');left.append(code,route);
-   const right=document.createElement('div');right.className='job-side';
-   const badge=document.createElement('span');
-   const info=QA.statusInfo(j.status);
-   badge.className='status '+info.cssClass;
-   const thaiStatus={OPEN:'แจ้งงาน',IN_PROGRESS:'กำลังดำเนินการ',REWORK:'กำลังดำเนินการ',WAITING_REVIEW:'รอตรวจสอบ',CLOSED:'สำเร็จ',CANCELLED:'ยกเลิกแล้ว'};
-   badge.textContent=thaiStatus[String(j.status||'').trim().toUpperCase()]||'ไม่ทราบสถานะ';
-   const date=document.createElement('span');date.className='job-date';
-   date.textContent=String(j.createdDateTime||j.created_at||'').trim().split(/[ T]/)[0];
-   right.append(badge,date);
-   card.append(left,right);box.append(card);
-  }
+  for(const j of filtered){const a=document.createElement('a');a.className='filtered-card';a.href=j.vnext?'vnext-job.html?id='+encodeURIComponent(j.jobId):QA.jobUrl(j.jobId);
+   const left=document.createElement('span');const strong=document.createElement('strong');strong.textContent=j.carCode||j.jobId;const sub=document.createElement('small');sub.style.display='block';sub.textContent=(j.fromDepartment||'-')+' → '+(j.toDepartment||'-');left.append(strong,sub);
+   const right=document.createElement('span');right.style.textAlign='right';right.textContent=({OPEN:'กำลังดำเนินการ',IN_PROGRESS:'กำลังดำเนินการ',REWORK:'กำลังดำเนินการ',WAITING_REVIEW:'รอตรวจสอบ',CLOSED:'สำเร็จ'}[j.status]||j.status);const date=document.createElement('small');date.style.display='block';date.textContent=j.createdDateTime||'';right.append(date);a.append(left,right);box.append(a);}
   if(a.length>=200||b.length>=1000){const note=document.createElement('p');note.className='filtered-empty';note.textContent='แสดงรายการได้ไม่ครบทั้งหมด เนื่องจากข้อจำกัดจำนวนข้อมูลใน API';box.append(note)}
  }catch(e){if(requestId===resultsRequestId)box.textContent='ค้นหารายการไม่สำเร็จ: '+e.message}
 }
