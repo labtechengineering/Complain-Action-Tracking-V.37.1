@@ -14,6 +14,8 @@ async function mediaFor(issueIds,assignmentId,canEdit=false){const permitted=med
 async function render(){if(!jobId){setNote('ไม่พบหมายเลขงาน',true);return;}
  try{detail=await rpc('qa_vnext_job_detail',{p_job_id:jobId});media=await rpc('qa_vnext_media_list',{p_job_id:jobId});
  if(!Array.isArray(media))media=[];
+ const editBtn=$('editRequestBtn');if(editBtn){editBtn.hidden=!detail.can_manage_issues;editBtn.onclick=()=>{const target=document.querySelector('.issue-edit-controls');if(!target)return;document.querySelectorAll('.issue-edit-controls').forEach(x=>x.hidden=false);const panel=target.closest('.department-panel');if(panel){document.querySelectorAll('.department-panel').forEach(x=>x.hidden=x!==panel);document.querySelectorAll('#departmentChips button').forEach(x=>x.classList.toggle('active',x.textContent.startsWith(panel.dataset.departmentCode+' ·')));}target.scrollIntoView({behavior:'smooth',block:'center'});};}
+ const warning=sessionStorage.getItem('qa-v38-line-warning:'+jobId);if(warning){setNote('บันทึกใบงานแล้ว แต่แจ้งเตือน LINE ไม่สำเร็จ: '+warning,true);sessionStorage.removeItem('qa-v38-line-warning:'+jobId);}
  $('details').innerHTML=`<h2>ข้อมูลการแจ้งเรื่อง</h2><div class="job-general-grid">
  <div class="job-general-field"><span class="job-general-label">ประเภทงาน:</span><span class="job-general-value">${esc(detail.source_type||'-')}</span></div>
  <div class="job-general-field"><span class="job-general-label">Serial Number:</span><span class="job-general-value">${esc(detail.serial_no||'-')}</span></div>
@@ -25,13 +27,14 @@ async function render(){if(!jobId){setNote('ไม่พบหมายเลข
  </div>`;
  const list=$('assignments');list.replaceChildren();if(!detail.assignments?.length){list.innerHTML='<section class="sheet">ใบงานนี้ยังไม่แยกเป็นหลายฝ่าย <a href="job.html?id='+encodeURIComponent(jobId)+'">เปิดหน้าใบงานเดิม</a></section>';return;}
  for(const a of detail.assignments){const mine=QA.profile?.department===a.department_code||QA.profile?.role==='system_admin';const head=QA.profile?.role==='system_admin'||(mine&&QA.profile?.role==='department_admin');
- const isRequester=detail.is_requester||QA.profile?.role==='system_admin';const el=document.createElement('section');el.className='sheet department-panel';el.dataset.assignment=a.assignment_id;
+ const isRequester=detail.is_requester||QA.profile?.role==='system_admin';const el=document.createElement('section');el.className='sheet department-panel';el.dataset.assignment=a.assignment_id;el.dataset.departmentCode=a.department_code;
  const issueIds=(a.issues||[]).map(i=>i.issue_id);
  const issueEditable=Boolean(detail.can_manage_issues);const responseEditable=mine&&a.status==='IN_PROGRESS'&&!a.approval_requested_at;
- const blocks=await Promise.all((a.issues||[]).map(async(i,k)=>`<article class="issue"><h3>ปัญหา ${esc(i.issue_number)} — ${esc(i.category_code)}</h3><p>${esc(i.description)}</p>${issueEditable?`<div class="no-print"><label>แก้ไขรายละเอียดปัญหา<textarea class="issue-edit-description" data-issue-id="${esc(i.issue_id)}" maxlength="20000">${esc(i.description)}</textarea></label><button type="button" class="issue-edit-save" data-issue-id="${esc(i.issue_id)}">บันทึกการแก้ไขปัญหา</button></div>`:""}<b>ไฟล์แนบจากผู้แจ้ง</b>${await mediaFor([i.issue_id],null,issueEditable)}${issueEditable?`<div class=\"no-print\"><label>เพิ่มไฟล์ของปัญหา ${i.issue_number}<input class=\"issueFiles\" data-issue-number=\"${i.issue_number}\" type=\"file\" accept=\"image/jpeg,image/png,image/webp,video/mp4,video/webm\" multiple></label></div>`:''}</article>`));
- const responseMedia=await mediaFor([],a.assignment_id,responseEditable);
+ const blocks=await Promise.all((a.issues||[]).map(async(i,k)=>`<article class="issue"><h3>ปัญหา ${esc(i.issue_number)} — ${esc(i.category_code)}</h3><p>${esc(i.description)}</p>${issueEditable?`<div class="no-print issue-edit-controls" hidden><label>แก้ไขรายละเอียดปัญหา<textarea class="issue-edit-description" data-issue-id="${esc(i.issue_id)}" maxlength="20000">${esc(i.description)}</textarea></label><button type="button" class="issue-edit-save" data-issue-id="${esc(i.issue_id)}">บันทึกการแก้ไขปัญหา</button></div>`:""}<b>ไฟล์แนบจากผู้แจ้ง</b>${await mediaFor([i.issue_id],null,issueEditable)}${issueEditable?`<div class=\"no-print\"><label>เพิ่มไฟล์ของปัญหา ${i.issue_number}<input class=\"issueFiles\" data-issue-number=\"${i.issue_number}\" type=\"file\" accept=\"image/jpeg,image/png,image/webp,video/mp4,video/webm\" multiple></label></div>`:''}</article>`));
+ const showResponse=mine||a.status!=='OPEN'||Boolean(a.responsible_user);
+ const responseMedia=showResponse?await mediaFor([],a.assignment_id,responseEditable):'';
  el.innerHTML=`<h2>2. รายละเอียดปัญหา — ${esc(a.department_code)} <span class="badge">${esc(label(a.status))}</span></h2>${blocks.join('')}
- <h2>3. การดำเนินการของฝ่ายรับเรื่อง</h2><p><b>ผู้รับผิดชอบหลัก:</b> ${esc(a.responsible_name||a.responsible_user||'ยังไม่รับงาน')}</p>
+ ${showResponse?`<h2>3. การดำเนินการของฝ่ายรับเรื่อง</h2><p><b>ผู้รับผิดชอบหลัก:</b> ${esc(a.responsible_name||a.responsible_user||'ยังไม่รับงาน')}</p>
  <div class="row"><label>วันกำหนดเสร็จ<input class="due" type="date" value="${esc(a.due_date||'')}" ${!responseEditable?'disabled':''}></label></div>
  <label class="field">รายละเอียดปัญหา<textarea class="recv" ${!responseEditable?'disabled':''}>${esc(a.receiver_problem_detail||'')}</textarea></label>
  <label class="field">วิเคราะห์สาเหตุ<textarea class="analysis" ${!responseEditable?'disabled':''}>${esc(a.problem_analysis||'')}</textarea></label>
@@ -39,8 +42,8 @@ async function render(){if(!jobId){setNote('ไม่พบหมายเลข
  <h3>ไฟล์แนบฝ่ายรับเรื่อง</h3>${responseMedia}
  ${a.unrelated_requested_at?`<p class="action-note">แจ้งไม่เกี่ยวข้อง: ${esc(a.unrelated_reason||'')} · รอผู้แจ้งยืนยัน</p>`:''}
  ${responseEditable?`<div class="no-print"><label>แนบรูป/วิดีโอ (สูงสุด 5 รูป และ 1 วิดีโอ)<input class="responseFiles" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" multiple></label></div>`:''}
- <p class="muted">ผู้รับผิดชอบอัปเดตได้ร่วมกันในแผนก · หัวหน้าเป็นผู้อนุมัติ</p><div class="no-print actions"></div>
- <h3>4. การตรวจสอบและอนุมัติ</h3><p>${a.approved_at?'อนุมัติเมื่อ '+esc(new Date(a.approved_at).toLocaleString('th-TH')):esc(label(a.status))}</p>`;
+ <div class="no-print actions"></div>
+ <h3>4. การตรวจสอบและอนุมัติ</h3><p>${a.approved_at?'อนุมัติเมื่อ '+esc(new Date(a.approved_at).toLocaleString('th-TH')):esc(label(a.status))}</p>` : ''}${!showResponse?'<div class="no-print actions"></div>':''}`;
  for(const button of el.querySelectorAll('.issue-edit-save'))button.addEventListener('click',async()=>{
   const issueId=button.dataset.issueId;
   const area=[...el.querySelectorAll('.issue-edit-description')].find(x=>x.dataset.issueId===issueId);
@@ -53,7 +56,7 @@ async function render(){if(!jobId){setNote('ไม่พบหมายเลข
   try{await uploadIssue(+inp.dataset.issueNumber,files);setNote('เพิ่มไฟล์แนบเรียบร้อย');await render();}catch(e){setNote('เพิ่มไฟล์ไม่สำเร็จ: '+e.message,true);}finally{inp.disabled=false;}});
  const actions=el.querySelector('.actions');
  function btn(text,action,color='secondary'){const b=document.createElement('button');b.textContent=text;b.className=color;b.onclick=()=>act(a,action,el);actions.append(b);}
- if(mine&&a.status==='OPEN'&&!a.unrelated_requested_at)btn('รับงาน','ACCEPT');
+ if(mine&&a.status==='OPEN'&&!a.unrelated_requested_at){if(QA.profile?.role==='system_admin'){const note=document.createElement('label');note.className='admin-accept-comment';note.textContent='หมายเหตุรับงานแทนแผนก';const area=document.createElement('textarea');area.className='admin-accept-input';area.placeholder='ข้อความถึงแผนกผู้รับเรื่อง';area.maxLength=2000;note.append(area);actions.append(note);}btn('รับงาน','ACCEPT');}
  if(responseEditable){btn('บันทึก','SAVE_DRAFT');btn('ส่งให้หัวหน้าตรวจสอบ','REQUEST_APPROVAL');}
  if(head&&a.status==='IN_PROGRESS'&&a.approval_requested_at){btn('อนุมัติ','APPROVE');btn('ไม่อนุมัติ','RETURN','danger');}
  if(mine&&!a.unrelated_requested_at&&['OPEN','IN_PROGRESS'].includes(a.status)&&!a.approval_requested_at)btn('ไม่เกี่ยวข้อง','UNRELATED_REQUEST','secondary');
@@ -89,7 +92,7 @@ function renderTracker(d){
 async function act(a,action,el){let data={};if(action==='SAVE_DRAFT'||action==='REQUEST_APPROVAL'){data={receiver_problem_detail:el.querySelector('.recv').value,problem_analysis:el.querySelector('.analysis').value,corrective_action:el.querySelector('.fix').value,due_date:el.querySelector('.due').value};}
  if(action==='REQUEST_APPROVAL'&&el.querySelector('.responseFiles')?.files?.length){setNote('กรุณากดบันทึกร่างเพื่ออัปโหลดไฟล์แนบก่อน แล้วจึงส่งให้หัวหน้าตรวจสอบ',true);return;}
  if(['RETURN','REQUESTER_FAIL','UNRELATED_REQUEST'].includes(action)){const reason=prompt(action==='RETURN'?'ระบุเหตุผลที่ไม่อนุมัติ':action==='REQUESTER_FAIL'?'ระบุเหตุผลที่ไม่ผ่าน':'ระบุเหตุผลที่ไม่เกี่ยวข้อง');if(!reason?.trim())return;data={reason:reason.trim()};}
- if(action==='ACCEPT'&&QA.profile.role==='system_admin'){const comment=prompt('หมายเหตุรับงานแทนแผนก (แสดงให้แผนกนั้นเห็น)')||'';data={comment};}
+ if(action==='ACCEPT'&&QA.profile.role==='system_admin'){data={comment:el.querySelector('.admin-accept-input')?.value.trim()||''};}
  if(['APPROVE','REQUESTER_PASS','UNRELATED_CONFIRM'].includes(action)&&!confirm('ยืนยันการดำเนินการ?'))return;
  try{setNote('กำลังบันทึก...');let expected=a.version;
  if(action==='REQUEST_APPROVAL'){

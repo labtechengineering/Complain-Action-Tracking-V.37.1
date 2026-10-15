@@ -193,8 +193,10 @@
   }
   status(`สร้างใบงาน ${createdCode||jobId} แล้ว กำลังบันทึกไฟล์แนบ...`);
   await uploadMedia(jobId);
-  await notifyLine(jobId);
-  status('บันทึกสำเร็จ '+(createdCode||jobId)+' กำลังเปิดใบงาน');
+  let lineWarning='';
+  try{await notifyLine(jobId);}catch(lineError){lineWarning=err(lineError);}
+  if(lineWarning)sessionStorage.setItem('qa-v38-line-warning:'+jobId,lineWarning);
+  status('บันทึกใบงานสำเร็จ กำลังเปิดรายละเอียด');
   location.replace('vnext-job.html?id='+encodeURIComponent(jobId));
  }catch(ex){status(err(ex)+(createdId?' — ระบบเก็บเลขงานไว้แล้ว อย่ากดสร้างซ้ำ กดปุ่มเดิมเพื่ออัปโหลดไฟล์อีกครั้ง':''),true);}
  finally{busy=false;baseSubmit.disabled=false;}}
