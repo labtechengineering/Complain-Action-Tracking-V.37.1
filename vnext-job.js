@@ -76,6 +76,9 @@ async function render(){if(!jobId){setNote('ไม่พบหมายเลข
  el.dataset.assignment=a.assignment_id;el.dataset.departmentCode=a.department_code;
  const responseEditable=mine&&a.status==='IN_PROGRESS'&&!a.approval_requested_at;
  const showResponse=a.status!=='OPEN'||Boolean(a.responsible_user||a.accepted_at);
+ // A requester should not see an empty Section 3 before the receiving department accepts.
+ // Keep it available for the receiving department (including its acceptance controls).
+ if(detail.is_requester && !mine && !showResponse)continue;
  const responseMedia=showResponse?await mediaFor([],a.assignment_id,responseEditable):'';
  el.innerHTML=`<h2>3. การดำเนินงาน — ${esc(a.department_code)} <span class="badge">${esc(label(a.status))}</span></h2>
  ${showResponse?`<h3>รายละเอียดการดำเนินการ</h3><p><b>ผู้รับผิดชอบหลัก:</b> ${esc(a.responsible_name||a.responsible_user||'ยังไม่รับงาน')}</p>
