@@ -25,7 +25,7 @@
   // This works both at / and at /repository-name/ on GitHub Pages.
   const appBase = new URL('.', document.currentScript?.src || location.href);
   const pageFiles = Object.freeze({create:'create.html', index:'index.html',
-    job:'job.html', history:'history.html', dashboard:'dashboard.html', work:'work.html', settings:'settings.html', profile:'profile.html', signup:'signup.html', reset:'reset-password.html', forcePassword:'force-password.html', login:'login.html'});
+    job:'job.html', history:'history.html', dashboard:'dashboard.html', customer:'customer.html', work:'work.html', settings:'settings.html', profile:'profile.html', signup:'signup.html', reset:'reset-password.html', forcePassword:'force-password.html', login:'login.html'});
   const pageName = input => {
     try {
       const u = new URL(input || location.href, appBase);
@@ -157,7 +157,7 @@
     try {
       if(!raw) return fallback;
       const u=new URL(raw,appBase),page=pageName(u.href);
-      if(u.username || u.password || !['create','job','history','dashboard','work','settings','profile'].includes(page)) return fallback;
+      if(u.username || u.password || !['create','job','history','dashboard','customer','work','settings','profile'].includes(page)) return fallback;
       const id=QA.jobIdFromUrl(u.href);
       if(page==='job' || (page==='create' && id)) return id?QA.jobUrl(id):QA.pageUrl('history');
       return QA.pageUrl(page,Object.fromEntries(u.searchParams));
@@ -168,7 +168,7 @@
     const page=pageName(),id=QA.jobIdFromUrl();
     let next;
     if(id && ['create','job'].includes(page)) next=QA.jobUrl(id);
-    else if(['create','history','dashboard','work','settings','profile'].includes(page)) next=QA.pageUrl(page,Object.fromEntries(new URLSearchParams(location.search)));
+    else if(['create','history','dashboard','customer','work','settings','profile'].includes(page)) next=QA.pageUrl(page,Object.fromEntries(new URLSearchParams(location.search)));
     else next=QA.pageUrl('dashboard');
     return QA.pageUrl('login',{next});
   };
