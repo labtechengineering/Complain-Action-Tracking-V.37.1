@@ -37,7 +37,7 @@
  problems.push(create());
  const oldProblem=$('problemDetail')?.closest('.card');if(!oldProblem)return;
  const panel=document.createElement('section');panel.className='card';panel.id='vnPanel';
- panel.innerHTML=`<div class="section-title">2. ปัญหาและฝ่ายรับเรื่อง</div><p class="vn-note">เพิ่มได้หลายปัญหา เลือกหลายฝ่ายต่อปัญหา และใช้เลขงานร่วมกัน</p>
+ panel.innerHTML=`<div class="section-title">2. ปัญหาและฝ่ายรับเรื่อง</div>
  <div id="vnHeader" class="vn-row"><label>ประเภทงาน<select id="vnSource"><option value="PRODUCTION">Production</option><option value="AFTERSALES">Aftersales</option></select></label><label>Customer Name<input id="vnCustomer" maxlength="200"></label><label>Country<input id="vnCountry" maxlength="120"></label></div>
  <label>Remark<textarea id="vnRemark" maxlength="20000" placeholder="หมายเหตุ (ถ้ามี)"></textarea></label>
  <div id="vnProblems"></div><button type="button" class="vn-btn" id="vnAdd">+ เพิ่มปัญหา</button>
@@ -59,7 +59,7 @@
  $('toDepartment').closest('.field').style.display='none';$('toDepartment').required=false;
  $('category').required=false;$('problemDetail').required=false;
  const oldImages=$('imageInput').closest('.card');oldImages.style.display='none';
- const baseSubmit=$('submitBtn');baseSubmit.textContent='แจ้งงาน (หลายฝ่ายรับเรื่อง)';
+ const baseSubmit=$('submitBtn');baseSubmit.textContent='แจ้งงาน';
  function save(){for(const el of $('vnProblems').querySelectorAll('[data-issue]')){const i=problems.find(p=>p.id===+el.dataset.issue);if(!i)continue;i.category=el.querySelector('.vn-category').value;i.description=el.querySelector('.vn-detail').value;i.departments=[...el.querySelectorAll('.vn-dept:checked')].map(c=>c.value);}}
  function render(){const host=$('vnProblems');host.replaceChildren();problems.forEach((p,i)=>{
   const box=document.createElement('article');box.className='vn-card';box.dataset.issue=p.id;

@@ -5,7 +5,7 @@ const safe=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'
 const norm=v=>String(v??'').trim().toLowerCase();
 const dt=j=>{const s=String(j.createdDateTime||'');const d=new Date(s.replace(' ','T'));return Number.isNaN(+d)?0:+d};
 const timeText=j=>String(j.createdDateTime||'—');
-let all=[],base=[],selected='all',selectedDept='',expanded=false,page=0;const pageSize=20;
+let all=[],base=[],selected='all',selectedDept='',expanded=false,page=0,receiverCodes=null,receiverError='';const pageSize=20;
 function bangkokKey(j){const s=String(j.createdDateTime||'');let m=s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);if(m)return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);return m?`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`:''}
 function weekKey(v){const d=new Date(v+'T12:00:00+07:00');if(isNaN(+d))return '';const day=(d.getUTCDay()+6)%7;d.setUTCDate(d.getUTCDate()-day+3);const first=new Date(Date.UTC(d.getUTCFullYear(),0,4));const n=1+Math.round(((d-first)/86400000-3+(first.getUTCDay()+6)%7)/7);return `${d.getUTCFullYear()}-W${String(n).padStart(2,'0')}`}
 function periodMatch(j){const type=$('filter').value;if(type==='all')return true;const key=bangkokKey(j);if(!key)return false;if(type==='day')return key===$('day').value;if(type==='week')return weekKey(key)===$('week').value;if(type==='month')return key.slice(0,7)===$('month').value;return key.slice(0,4)===$('year').value}
@@ -21,13 +21,13 @@ function toggleChartFilter(status='',dept=''){
 }
 function renderCharts(counts){
  const chartRows=base.filter(j=>statuses.some(x=>x[0]===j.status));
- const depts=[...new Set(chartRows.map(j=>String(j.toDepartment||'ไม่ระบุ')))].sort((a,b)=>a.localeCompare(b,'th'));
+ const depts=receiverCodes||[];
  const max=Math.max(1,...depts.map(d=>chartRows.filter(j=>String(j.toDepartment||'ไม่ระบุ')===d).length));
  const ticks=4;
  $('axis').innerHTML=Array.from({length:ticks+1},(_,i)=>`<span>${Math.round(max*(ticks-i)/ticks)}</span>`).join('');
  $('barLegend').innerHTML=statuses.map(([s,label,color])=>`<button type="button" class="legend-action ${selected===s&&!selectedDept?'selected':''}" data-chart-status="${s}" title="กรอง ${safe(label)}"><i style="background:${color}"></i>${label}</button>`).join('');
  $('plot').innerHTML=depts.length?depts.map((d,di)=>{const rows=chartRows.filter(j=>String(j.toDepartment||'ไม่ระบุ')===d);const cc=recount(rows);const total=rows.length;
- const seg=statuses.map(([s,label,color])=>{const n=cc[s]||0;return n?`<button type="button" class="bar-segment ${selected===s&&selectedDept===d?'selected':''}" data-chart-status="${s}" data-chart-dept="${safe(d)}" title="${safe(d)} / ${safe(label)}: ${n} งาน" aria-label="กรอง ${safe(d)} สถานะ ${safe(label)} ${n} งาน" style="background:${color};height:${n/max*178}px"></button>`:''}).join('');return `<div class="bar-item"><button class="bar-total chart-dept" data-chart-dept="${safe(d)}" title="กรองแผนก ${safe(d)}">${total}</button><div class="bar-stack">${seg}</div><button class="bar-label chart-dept" data-chart-dept="${safe(d)}" title="กรองแผนก ${safe(d)}">${safe(d)}</button></div>`}).join(''):'<div class="empty">ไม่มีงานใน 3 สถานะที่เลือก</div>';
+ const seg=statuses.map(([s,label,color])=>{const n=cc[s]||0;return n?`<button type="button" class="bar-segment ${selected===s&&selectedDept===d?'selected':''}" data-chart-status="${s}" data-chart-dept="${safe(d)}" title="${safe(d)} / ${safe(label)}: ${n} งาน" aria-label="กรอง ${safe(d)} สถานะ ${safe(label)} ${n} งาน" style="background:${color};height:${n/max*178}px"></button>`:''}).join('');return `<div class="bar-item"><button class="bar-total chart-dept" data-chart-dept="${safe(d)}" title="กรองแผนก ${safe(d)}">${total}</button><div class="bar-stack">${seg}</div><button class="bar-label chart-dept" data-chart-dept="${safe(d)}" title="กรองแผนก ${safe(d)}">${safe(d)}</button></div>`}).join(''):`<div class="empty">${safe(receiverError||'ยังไม่ได้เปิดฝ่ายรับเรื่องใน Settings')}</div>`;
  const countTotal=statuses.reduce((sum,[s])=>sum+(counts[s]||0),0);
  let pos=0;const parts=statuses.map(([s,label,color])=>{const n=counts[s]||0;const from=pos;pos+=countTotal?n/countTotal*100:0;return {s,label,color,n,from,to:pos}});
  $('donut').style.background=countTotal?`conic-gradient(${parts.filter(p=>p.n).map(p=>`${p.color} ${p.from}% ${p.to}%`).join(',')})`:'#e4e8ef';
@@ -39,6 +39,27 @@ function renderCharts(counts){
 function renderRows(){const label=(selectedDept?selectedDept+' · ':'')+(selected==='all'?'งานแจ้งล่าสุด':(statuses.find(a=>a[0]===selected)?.[1]||'งานที่เลือก'));$('listTitle').textContent=label;const filtered=base.filter(j=>(selected==='all'||j.status===selected)&&(!selectedDept||String(j.toDepartment||'ไม่ระบุ')===selectedDept)).slice().sort((a,b)=>dt(b)-dt(a)||String(b.createdDateTime||'').localeCompare(String(a.createdDateTime||'')));const count=expanded?pageSize:6;const pageCount=Math.max(1,Math.ceil(filtered.length/count));page=Math.min(page,pageCount-1);const show=filtered.slice(page*count,(page+1)*count);$('jobRows').innerHTML=show.length?show.map(j=>{const status=window.QA?.statusInfo?.(j.status)?.label||j.status||'ไม่ทราบสถานะ';const url=window.QA?.jobUrl?.(j.jobId)||'job.html?id='+encodeURIComponent(j.jobId);return `<a class="job-row" href="${safe(url)}" title="เปิดใบงาน ${safe(j.jobId)}"><span><b>${safe(j.jobId||'—')}</b></span><span title="${safe(j.customerName)}">${safe(j.customerName||'ไม่ระบุ')}</span><span title="${safe(j.serialNo)}">${safe(j.serialNo||'—')}</span><span class="route" title="${safe(j.fromDepartment)} → ${safe(j.toDepartment)}">${safe(j.fromDepartment||'—')} → ${safe(j.toDepartment||'—')}</span><span title="${safe(j.problemDetail)}">${safe(j.problemDetail||'—')}</span><span><i class="pill ${safe(statuses.some(a=>a[0]===j.status)?j.status:'UNKNOWN')}">${safe(status)}</i></span><span>${safe(timeText(j))}</span></a>`}).join(''):'<div class="empty">ไม่พบรายการงาน</div>';$('viewAll').textContent=expanded?'แสดง 6 รายการล่าสุด':'ดูงานทั้งหมด ('+filtered.length+')';$('pagination').hidden=!expanded||filtered.length<=pageSize;$('prevPage').disabled=page===0;$('nextPage').disabled=page>=pageCount-1;$('pageInfo').textContent=`หน้า ${page+1} / ${pageCount}`;document.querySelectorAll('.stat').forEach(el=>el.classList.toggle('active',el.dataset.status===selected))}
 function updatePeriod(){const v=$('filter').value;for(const k of ['day','week','month','year'])$(k).hidden=k!==v;page=0;render()}
 function init(){const p=window.QA?.profile||{};$('welcome').textContent=`สวัสดี ${p.display_name||p.email||'ผู้ใช้งาน'} · ${p.department||'ระบบติดตามงาน'} — ยินดีต้อนรับ`;const now=new Date();const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);const v=Object.fromEntries(parts.map(x=>[x.type,x.value]));const day=`${v.year}-${v.month}-${v.day}`;$('day').value=day;$('month').value=day.slice(0,7);$('year').value=v.year;$('week').value=weekKey(day);$('filter').addEventListener('change',updatePeriod);document.querySelector('.charts').addEventListener('click',ev=>{const target=ev.target.closest('[data-chart-status],[data-chart-dept]');if(target){toggleChartFilter(target.dataset.chartStatus||'',target.dataset.chartDept||'');return;}const ring=ev.target.closest('#donut');if(!ring||ev.target.closest('.donut-center'))return;const rect=ring.getBoundingClientRect(),cx=rect.left+rect.width/2,cy=rect.top+rect.height/2,dx=ev.clientX-cx,dy=ev.clientY-cy,dist=Math.hypot(dx,dy);if(dist<rect.width*.32||dist>rect.width*.52)return;const angle=(Math.atan2(dx,-dy)*180/Math.PI+360)%360;const part=JSON.parse(ring.dataset.parts||'[]').find(p=>angle>=p.from*3.6&&angle<p.to*3.6);if(part)toggleChartFilter(part.s,'');});['day','week','month','year','dashScope'].forEach(id=>$(id).addEventListener('change',()=>{page=0;render()}));$('dashSearch').addEventListener('input',()=>{page=0;render()});$('refresh').addEventListener('click',load);document.querySelectorAll('.stat').forEach(el=>el.addEventListener('click',()=>{selected=el.dataset.status;selectedDept='';expanded=false;page=0;renderCharts(recount(base));renderRows()}));$('viewAll').addEventListener('click',()=>{expanded=!expanded;page=0;renderRows()});$('prevPage').addEventListener('click',()=>{page--;renderRows()});$('nextPage').addEventListener('click',()=>{page++;renderRows()});load()}
-function load(){$('feedback').textContent='กำลังโหลดรายการงาน...';window.QA.run.withSuccessHandler(result=>{all=result.jobs||[];$('feedback').textContent=`โหลดข้อมูลเรียบร้อย ${all.length} รายการ`;page=0;render()}).withFailureHandler(e=>{$('feedback').textContent='โหลดข้อมูลไม่สำเร็จ: '+(e?.message||e);$('jobRows').innerHTML='<div class="empty">ไม่สามารถโหลดรายการงานได้</div>'}).searchJobs({})}
+async function load(){
+ $('feedback').textContent='กำลังโหลดรายการงาน...';
+ // Use the identical receiver configuration shown under Settings > ฝ่ายรับเรื่อง.
+ try {
+   const {data,error}=await window.QA.client.rpc('qa_vnext_receivers',{});
+   if(error)throw error;
+   if(!Array.isArray(data))throw new Error('Invalid receiver settings response');
+   receiverCodes=[...new Set(data.filter(x=>x.enabled===true).map(x=>String(x.code||'').trim()).filter(Boolean))];
+   receiverError='';
+ } catch(e){
+   receiverCodes=[];
+   receiverError='ไม่สามารถโหลดฝ่ายรับเรื่องจาก Settings: '+(e?.message||e);
+ }
+ window.QA.run.withSuccessHandler(result=>{
+   all=result.jobs||[];
+   $('feedback').textContent=receiverError||`โหลดข้อมูลเรียบร้อย ${all.length} รายการ`;
+   page=0;render();
+ }).withFailureHandler(e=>{
+   $('feedback').textContent='โหลดข้อมูลไม่สำเร็จ: '+(e?.message||e);
+   $('jobRows').innerHTML='<div class="empty">ไม่สามารถโหลดรายการงานได้</div>';
+ }).searchJobs({});
+}
 if(!window.QA?.run){document.addEventListener('DOMContentLoaded',()=>{$('feedback').textContent='ไม่พบระบบ API กรุณาตรวจสอบ config.js และ supabase-api.js'});}else document.addEventListener('DOMContentLoaded',()=>{window.QA.run.withSuccessHandler(init).withFailureHandler(e=>{$('feedback').textContent=e?.message||String(e)}).getSettings()});
 })();
