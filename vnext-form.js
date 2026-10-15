@@ -21,7 +21,7 @@
  .vn-source-choice.chosen{border-color:#9db0c8;background:#f8fafc}
  .vn-source-choice.chosen p{color:#475569}
  .vn-source-buttons{display:grid;grid-template-columns:repeat(2,minmax(160px,1fr));gap:10px;margin:0}
- .vn-source-buttons button{background:white;color:#183153;border:2px solid #c0cedf;border-radius:8px;padding:9px 10px;min-height:44px;font-size:15px;font-weight:800;cursor:pointer;transition:background .15s,border-color .15s,box-shadow .15s}
+ .vn-source-buttons button{background:white;color:#183153;border:2px solid #c0cedf;border-radius:8px;padding:9px 10px;min-height:46px;font-family:Arial,sans-serif;font-size:16px;font-weight:600;line-height:1.35;cursor:pointer;transition:background .15s,border-color .15s,box-shadow .15s}
  .vn-source-buttons button.active{background:#14274c;color:#fff;border-color:#14274c;box-shadow:0 0 0 3px #b8d1f3}
  .vn-source-buttons button:focus-visible{outline:3px solid #f59e0b;outline-offset:3px}
  @media(max-width:480px){.vn-source-buttons{grid-template-columns:1fr}.vn-source-buttons button{min-height:44px}}
