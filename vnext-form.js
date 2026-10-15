@@ -15,16 +15,16 @@
  .vn-checks{display:flex;flex-wrap:wrap;gap:9px}.vn-checks label{border:1px solid #dae1ea;display:flex;align-items:center;gap:7px;padding:8px 10px;border-radius:8px;font-weight:400}
  .vn-checks input{width:auto}.vn-card textarea{min-height:82px}.vn-btn{border:1px solid #bdcad6;border-radius:8px;padding:10px 13px;cursor:pointer;background:#f1f5f9}
  .vn-files{font-size:12px;color:#526276}.vn-note{font-size:13px;color:#5b6675}
- .vn-source-choice{background:#f8fafc;border:2px solid #f59e0b;border-radius:14px;padding:16px 18px;margin:12px 0 20px}
- .vn-source-choice h3{font-size:18px;margin:0 0 4px;color:#14274c}
- .vn-source-choice p{font-size:13px;color:#92400e;margin:0 0 14px;font-weight:700}
+ .vn-source-choice{background:#f8fafc;border:2px solid #f59e0b;border-radius:10px;padding:10px 12px;margin:10px 0 14px}
+ .vn-source-choice h3{font-size:15px;margin:0 0 8px;color:#14274c}
+ .vn-source-choice p{display:none}
  .vn-source-choice.chosen{border-color:#9db0c8;background:#f8fafc}
  .vn-source-choice.chosen p{color:#475569}
- .vn-source-buttons{display:grid;grid-template-columns:repeat(2,minmax(160px,1fr));gap:13px;margin:0}
- .vn-source-buttons button{background:white;color:#183153;border:2px solid #c0cedf;border-radius:12px;padding:20px 12px;min-height:76px;font-size:19px;font-weight:800;cursor:pointer;transition:background .15s,border-color .15s,box-shadow .15s}
+ .vn-source-buttons{display:grid;grid-template-columns:repeat(2,minmax(160px,1fr));gap:10px;margin:0}
+ .vn-source-buttons button{background:white;color:#183153;border:2px solid #c0cedf;border-radius:8px;padding:9px 10px;min-height:44px;font-size:15px;font-weight:800;cursor:pointer;transition:background .15s,border-color .15s,box-shadow .15s}
  .vn-source-buttons button.active{background:#14274c;color:#fff;border-color:#14274c;box-shadow:0 0 0 3px #b8d1f3}
  .vn-source-buttons button:focus-visible{outline:3px solid #f59e0b;outline-offset:3px}
- @media(max-width:480px){.vn-source-buttons{grid-template-columns:1fr}.vn-source-buttons button{min-height:68px}}
+ @media(max-width:480px){.vn-source-buttons{grid-template-columns:1fr}.vn-source-buttons button{min-height:44px}}
 
  .vn-checks label{font-size:13px;font-weight:700;position:relative;cursor:pointer}.vn-checks label:has(input:checked){background:#14274c;color:#fff;border-color:#14274c}.vn-checks input{position:absolute;opacity:0;width:0;height:0}
  .vn-file-grid{display:flex;flex-wrap:wrap;gap:9px;margin:10px 0}.vn-file-item{width:125px;border:1px solid #e2e8f0;background:#f8fafc;border-radius:9px;padding:6px}.vn-file-item img,.vn-file-item video{width:100%;height:78px;object-fit:contain;border-radius:6px;background:white}.vn-file-item textarea{width:100%;font-size:12px;min-height:53px;resize:vertical}.vn-file-item button{font-size:12px;padding:4px 7px}.vn-file-item span{display:block;height:78px;text-align:center;padding-top:20px;color:#64748b}
@@ -68,11 +68,11 @@
  // Require an explicit choice for every new report; never silently default to Production.
  source.value='';
  const chooser=document.createElement('div');chooser.className='vn-source-choice';
- chooser.innerHTML='<h3>เลือกประเภทงาน *</h3><p id="vnSourceHint">กรุณาเลือก Production หรือ Aftersales ก่อนแจ้งงาน</p>';
+ chooser.innerHTML='<h3>เลือกประเภทงาน *</h3>';
  const buttons=document.createElement('div');buttons.className='vn-source-buttons';buttons.setAttribute('role','group');buttons.setAttribute('aria-label','เลือกประเภทงาน');
  [['PRODUCTION','Production'],['AFTERSALES','Aftersales']].forEach(([key,name])=>{
   const b=document.createElement('button');b.type='button';b.textContent=name;b.dataset.value=key;
-  b.setAttribute('aria-pressed','false');b.onclick=()=>{source.value=key;chooser.classList.add('chosen');$('vnSourceHint').textContent='เลือกแล้ว: '+name;[...buttons.children].forEach(x=>{x.classList.toggle('active',x.dataset.value===key);x.setAttribute('aria-pressed',String(x.dataset.value===key))})};
+  b.setAttribute('aria-pressed','false');b.onclick=()=>{source.value=key;chooser.classList.add('chosen');[...buttons.children].forEach(x=>{x.classList.toggle('active',x.dataset.value===key);x.setAttribute('aria-pressed',String(x.dataset.value===key))})};
   buttons.append(b);
  });chooser.append(buttons);top?.insertBefore(chooser,top.querySelector('.grid'));
  $('toDepartment').closest('.field').style.display='none';$('toDepartment').required=false;
@@ -111,7 +111,7 @@
  });}
  $('vnAdd').onclick=()=>{save();problems.push(create());render();};
  function collect(){save();if(!['PRODUCTION','AFTERSALES'].includes(source.value)){
-  chooser.classList.remove('chosen');$('vnSourceHint').textContent='ต้องเลือกประเภทงานก่อนกดแจ้งงาน';
+  chooser.classList.remove('chosen');
   chooser.scrollIntoView({behavior:'smooth',block:'center'});
   buttons.firstElementChild.focus();
   throw new Error('กรุณาเลือกประเภทงาน Production หรือ Aftersales ก่อนแจ้งงาน');
