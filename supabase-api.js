@@ -378,7 +378,7 @@
     return String(key||'');
   }
   function mapJob(j) {
-    return {jobId:j.job_id,serialNo:j.serial_no,createdDateTime:dateTime(j.created_at),issuerName:j.issuer_name,
+    return {jobId:j.job_id,serialNo:j.serial_no,customerName:j.customer_name??'',country:j.country??'',createdDateTime:dateTime(j.created_at),issuerName:j.issuer_name,
       fromDepartment:j.from_department,toDepartment:j.to_department,category:j.category,impact:j.impact,location:j.location,
       downtimeMin:j.downtime_min,problemDetail:j.problem_detail,priority:j.priority,status:j.status,
       assigneeName:j.assignee_name,targetDate:j.target_date||'',initialAction:j.initial_action,preventiveAction:j.preventive_action,
