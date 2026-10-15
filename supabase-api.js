@@ -402,6 +402,26 @@
       storagePath:a.storage_path,url:urls.get(a.storage_path),originalUrl:urls.get(a.storage_path),description:a.description,
       roundNo:a.round_no||0,uploadedBy:a.uploaded_by_name,department:a.department,uploadedDateTime:dateTime(a.uploaded_at)}));
   }
+  async function attachCustomerFields(jobs){
+    if(!jobs.length)return;
+    for(let offset=0;offset<jobs.length;offset+=100){
+      const batch=jobs.slice(offset,offset+100);
+      const ids=batch.map(j=>j.jobId).filter(Boolean);
+      // V41 SQL function honors visibility through existing qa_search (authenticated caller).
+      const {data,error}=await QA.client.rpc('qa_customer_fields',{p_job_ids:ids});
+      if(error){
+        // Do not silently display reporter as customer or pretend the data loaded.
+        throw new Error('CUSTOMER_DB_MIGRATION_REQUIRED: '+error.message);
+      }
+      const byId=new Map((data||[]).map(x=>[String(x.job_id),x]));
+      for(const j of batch){const row=byId.get(String(j.jobId));if(row){j.customerName=row.customer_name||'';j.country=row.country||'';}}
+    }
+  }
+  async function saveCustomerFields(jobId,data){
+    if(!jobId)return;
+    const {error}=await QA.client.rpc('qa_customer_save',{p_job_id:String(jobId),p_customer_name:String(data.customerName||''),p_country:String(data.country||'')});
+    if(error)throw new Error('บันทึกใบงานแล้ว เลขงาน '+jobId+' แต่บันทึกข้อมูลลูกค้าไม่สำเร็จ: '+error.message+' กรุณาอย่าส่งใบงานซ้ำ');
+  }
   const api = {
     async getSettings() {
       const result={departments:[],categories:[],priorities:[]};
@@ -418,6 +438,7 @@
       const data=await rpc('qa_get_job',{p_job_id:String(jobId)});
       if(!data?.job) throw new Error('JOB_NOT_FOUND_OR_FORBIDDEN');
       const images=await signedImages(data.attachments||[]), job=mapJob(data.job);
+      await attachCustomerFields([job]);
       job.beforeImages=images.filter(a=>a.fileType==='BEFORE');
       job.afterImages=images.filter(a=>a.fileType==='AFTER'&&!a.roundNo);
       job.correctiveLogs=(data.logs||[]).map(l=>({logId:l.log_id,jobId:l.job_id,roundNo:l.round_no,
@@ -434,6 +455,7 @@
         const rows=await rpc('qa_search',{p_filters:filters,p_offset:offset,p_limit:200});
         jobs.push(...rows.map(mapJob));if(rows.length<200) break;
       }
+      await attachCustomerFields(jobs);
       return {success:true,jobs,total:jobs.length};
     },
     async getDashboardData(filters={}) {
@@ -529,8 +551,8 @@
       if(QA.profile) QA.profile.must_change_password=false;
       return {success:true};
     },
-    createJob(data){return mutate('CREATE',null,data,data.files||[]);},
-    updateOpenJob(data){return mutate('UPDATE_OPEN',data.jobId,data,data.files||[]);},
+    async createJob(data){const result=await mutate('CREATE',null,data,data.files||[]);if(result?.success&&result?.jobId)await saveCustomerFields(result.jobId,data);return result;},
+    async updateOpenJob(data){const result=await mutate('UPDATE_OPEN',data.jobId,data,data.files||[]);if(result?.success&&result?.jobId)await saveCustomerFields(result.jobId,data);return result;},
     cancelJob(jobId,reason=''){return mutate('CANCEL',jobId,{reason},[]);},
     acceptJob(jobId,data={}){return mutate('ACCEPT',jobId,{acceptComment:String(data.acceptComment||'')},[]);},
     saveCorrectiveAction(data){return mutate(data.submitToQA===true?'SUBMIT':'SAVE',data.jobId,data,data.files||[]);},

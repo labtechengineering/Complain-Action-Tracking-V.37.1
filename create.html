@@ -8,8 +8,9 @@
   <meta name="referrer" content="no-referrer">
   <script src="config.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-api.js?v=38.0.1-route-fix"></script>
-  <script src="navigation.js?v=38.0.0"></script>
+  <script src="supabase-api.js?v=41"></script>
+  <script src="navigation.js?v=41"></script>
+  <script src="v41-menu.js?v=41" defer></script>
   <script src="v38-image-editor.js?v=38.0.0" defer></script>
   <script src="vnext-form.js?v=38.0.0" defer></script>
   <style>.qa-auth-loading > :not(script):not(style){display:none!important} .qa-app-content{min-width:0}</style>
@@ -299,6 +300,9 @@
       </select>
 
     </div>
+
+    <div class="field"><label for="customerNameInput">Customer name</label><input id="customerNameInput" type="text" maxlength="200" autocomplete="organization" placeholder="ชื่อลูกค้าตามแบบฟอร์ม"></div>
+    <div class="field"><label for="countryInput">Country</label><input id="countryInput" type="text" maxlength="100" placeholder="ประเทศ"></div>
 
     <div class="field">
 
@@ -723,6 +727,8 @@ document
               )
               .value,
 
+          customerName: document.getElementById('customerNameInput').value.trim(),
+          country: document.getElementById('countryInput').value.trim(),
           serialNo:
             document
               .getElementById(
@@ -867,6 +873,8 @@ async function loadEditJob(){
     document.getElementById('submitBtn').textContent='บันทึกการแก้ไข';
     document.getElementById('toDepartment').value=j.toDepartment;
     document.getElementById('serialNo').value=j.serialNo||'';
+    document.getElementById('customerNameInput').value=j.customerName||'';
+    document.getElementById('countryInput').value=j.country||'';
     document.getElementById('category').value=j.category;
     document.getElementById('priority').value=j.priority;
     document.getElementById('impact').value=j.impact||'';
