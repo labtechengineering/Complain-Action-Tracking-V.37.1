@@ -36,9 +36,14 @@
 .department-action-bar button:disabled{cursor:wait;opacity:.62;box-shadow:none;transform:translateY(2px)}
 .department-action-bar button[aria-busy="true"]{background:#64748b;color:white}
 @media print{.department-action-bar{display:none!important}}
+/* V50.8: immutable prior correction records with a new editing round */
+.response-prior-round{border:1px solid #cbd5e1;background:#f8fafc;border-radius:10px;padding:14px 18px;margin:12px 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.response-prior-round h3{margin:0 0 10px}
+.response-prior-round p{margin:8px 0;line-height:1.6}
+.rework-reminder{color:#b91c1c;font-weight:400}
 </style></head>
 <body class="qa-auth-loading"><main class="page" id="captureArea"><div class="job-topbar"><h1>Complain &amp; Action Tracking</h1><div class="job-toolbar no-print"><button id="editRequestBtn" type="button" hidden>แก้ไขใบแจ้ง</button><button id="pdfButton">Export PDF</button></div></div>
 <div id="feedback" role="status" class="vn-status"></div>
 <section id="jobTracker" class="sheet job-tracker" aria-label="สถานะใบงาน"><h2 id="jobTrackerNumber"></h2><div class="tracker-stages"><span class="track-stage" data-step="OPEN"><span class="track-node" aria-hidden="true">1</span>แจ้งงาน</span><span class="track-stage" data-step="IN_PROGRESS"><span class="track-node" aria-hidden="true">2</span>ดำเนินการ</span><span class="track-stage" data-step="WAITING_REVIEW"><span class="track-node" aria-hidden="true">3</span>รอตรวจสอบ</span><span class="track-stage" data-step="CLOSED"><span class="track-node" aria-hidden="true">4</span>สำเร็จ</span></div><div id="departmentChips" class="department-chips"></div></section>
 <section id="details" class="sheet">กำลังโหลดรายละเอียด...</section><div id="assignments"></div><section id="jobHistory" class="sheet"><h2>ประวัติการดำเนินงาน</h2><div id="historyRows" class="history-rows"></div></section></main>
-<script src="vnext-job.js?v=50.4" defer></script></body></html>
+<script src="vnext-job.js?v=50.8" defer></script></body></html>

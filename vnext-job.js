@@ -1,5 +1,5 @@
 (()=>{'use strict';const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const jobId=new URLSearchParams(location.search).get('id')||new URLSearchParams(location.search).get('job');let detail,media=[];let categoryNames=new Map();let receivingDepartments=[];
+const jobId=new URLSearchParams(location.search).get('id')||new URLSearchParams(location.search).get('job');let detail,media=[];let categoryNames=new Map();let receivingDepartments=[];let completedRounds=new Map();
 async function loadCategoryNames(){const {data,error}=await QA.client.from('qa_settings').select('code,name').eq('setting_type','CATEGORY').range(0,999);if(error)throw error;categoryNames=new Map((data||[]).map(x=>[String(x.code),String(x.name||'')]));}
 function categoryName(code){const key=String(code||'');return categoryNames.get(key)||'ไม่พบชื่อประเภทปัญหา';}
 const setNote=(s,bad=false)=>{$('feedback').textContent=s;$('feedback').style.color=bad?'#b91c1c':'#166534';};
@@ -55,6 +55,7 @@ async function notifyReceiverChange(ev){
 
 async function render(){if(!jobId){setNote('ไม่พบหมายเลขงาน',true);return;}
  try{await loadCategoryNames();detail=await rpc('qa_vnext_job_detail',{p_job_id:jobId});media=await rpc('qa_vnext_media_list',{p_job_id:jobId});
+ const archived=await rpc('qa_v51_assignment_rounds',{p_job_id:jobId});completedRounds=new Map();for(const row of (archived||[])){const key=String(row.assignment_id);if(!completedRounds.has(key))completedRounds.set(key,[]);completedRounds.get(key).push(row);}
  detail.assignments=(detail.assignments||[]).filter(a=>(a.issues||[]).length>0);
  if(!Array.isArray(media))media=[];
  if(detail.can_manage_issues){try{const rec=await rpc('qa_vnext_receivers',{});receivingDepartments=Array.isArray(rec)?rec.map(x=>({code:String(x.department_code||x.code||''),enabled:x.enabled!==false})).filter(x=>x.code&&x.enabled):[];}catch(_e){receivingDepartments=[];}}
@@ -148,9 +149,13 @@ async function render(){if(!jobId){setNote('ไม่พบหมายเลข
  // A requester should not see an empty Section 3 before the receiving department accepts.
  // Keep it available for the receiving department (including its acceptance controls).
  if(detail.is_requester && !mine && !showResponse)continue;
- const responseMedia=showResponse?await mediaFor([],a.assignment_id,responseEditable):'';
+ const priorRounds=completedRounds.get(String(a.assignment_id))||[];
+ const roundNumber=priorRounds.length+1;
+ const earlier=priorRounds.map(r=>`<section class="response-prior-round"><h3>บันทึกการแก้ไขครั้งที่ ${esc(r.round_no)} (อ่านอย่างเดียว)</h3><p class="muted">ผู้ตรวจรับไม่ผ่าน: ${esc(r.rejection_reason||'-')}</p><p><b>รายละเอียดปัญหา:</b> ${esc(r.receiver_problem_detail||'-')}</p><p><b>วิเคราะห์สาเหตุ:</b> ${esc(r.problem_analysis||'-')}</p><p><b>การแก้ไข:</b> ${esc(r.corrective_action||'-')}</p><p><b>กำหนดเสร็จ:</b> ${esc(r.due_date||'-')}</p></section>`).join('');
+ // Files attached in earlier rounds are view-only on rework; historical text is immutable in the DB.
+ const responseMedia=showResponse?await mediaFor([],a.assignment_id,responseEditable&&priorRounds.length===0):'';
  el.innerHTML=`<h2>3. การดำเนินงาน — ${esc(a.department_code)} <span class="badge">${esc(label(a.status))}</span></h2>
- ${showResponse?`<h3>รายละเอียดการดำเนินการ</h3><p><b>ผู้รับผิดชอบหลัก:</b> ${esc(a.responsible_name||a.responsible_user||'ยังไม่รับงาน')}</p>
+ ${showResponse?`${earlier}<h3>${priorRounds.length?'รายละเอียดการแก้ไขครั้งที่ '+roundNumber:'รายละเอียดการดำเนินการ'}</h3>${priorRounds.length&&a.status==='IN_PROGRESS'&&!a.approval_requested_at?'<p class="rework-reminder">↩ ส่งกลับแก้ไข — กรุณาบันทึกข้อมูลการแก้ไขครั้งใหม่ โดยบันทึกเดิมแก้ไขไม่ได้</p>':''}<p><b>ผู้รับผิดชอบหลัก:</b> ${esc(a.responsible_name||a.responsible_user||'ยังไม่รับงาน')}</p>
  <div class="row"><label>วันกำหนดเสร็จ<input class="due" type="date" value="${esc(a.due_date||'')}" ${!responseEditable?'disabled':''}></label></div>
  <label class="field">รายละเอียดปัญหา<textarea class="recv" ${!responseEditable?'disabled':''}>${esc(a.receiver_problem_detail||'')}</textarea></label>
  <label class="field">วิเคราะห์สาเหตุ<textarea class="analysis" ${!responseEditable?'disabled':''}>${esc(a.problem_analysis||'')}</textarea></label>
