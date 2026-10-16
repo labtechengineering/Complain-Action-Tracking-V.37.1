@@ -17,9 +17,32 @@ function enabledAssignments(j){const allowed=new Set(receiverCodes||[]);return (
 // A countable work item is a unique issue in one department assignment.
 // The same issue assigned to two departments represents two separately tracked actions.
 function assignmentIssues(a){const found=new Set();return (a.issues||[]).filter(i=>{const key=String(i.issue_id??i.issue_number??'');if(!key||found.has(key))return false;found.add(key);return true;});}
+// One issue gets one suffix across every receiving department. The suffix is the
+// persisted issue_number, NOT an assignment's position in a viewer-specific list.
+function displayIssueCode(j,assignment,issue){
+ const key=String(issue.issue_id);
+ const shared=j.issueCodes?.get(key);
+ return shared||String(j.carCode||j.jobId||'—')+'-'+String(issue.issue_number||1).padStart(2,'0');
+}
+// Dashboard list: ONE issue_id per row, irrespective of how many departments receive it.
+// Chart statistics intentionally continue counting issue x receiving department.
+function issueRowsFor(j){
+ const byIssue=new Map();
+ for(const a of deptAssignments(j))for(const issue of assignmentIssues(a)){
+  const key=String(issue.issue_id||issue.issue_number);
+  let e=byIssue.get(key);
+  if(!e){e={job:j,issue,assignments:[],departments:[],statuses:new Set()};byIssue.set(key,e);}
+  e.assignments.push(a);if(!e.departments.includes(a.department))e.departments.push(a.department);
+  if(a.chartStatus)e.statuses.add(a.chartStatus);
+ }
+ return [...byIssue.values()];
+}
 function entriesFor(j){return deptAssignments(j).flatMap(a=>assignmentIssues(a).map(issue=>({job:j,assignment:a,issue,chartStatus:a.chartStatus,department:a.department})));}
+function issueRowStatus(e){const types=[...e.statuses];return types.length===1?types[0]:'MIXED';}
 
-function deptAssignments(j){const p=window.QA?.profile||{}, dept=norm(p.department), scope=$('dashScope').value;const rows=enabledAssignments(j);
+function deptAssignments(j){const p=window.QA?.profile||{}, dept=norm(p.department), scope=$('dashScope').value;const role=String(p.role||'').toLowerCase();let rows=enabledAssignments(j);
+ // Lists for ordinary users and department admins contain ONLY assignments received by their department.
+ if(role==='user'||role==='department_admin')rows=rows.filter(a=>norm(a.department)===dept);
  if(scope==='received')return rows.filter(a=>norm(a.department)===dept);
  if(scope==='mine'&&norm(j.createdBy)!==norm(p.user_id))return [];
  if(scope==='department_sent'&&norm(j.fromDepartment)!==dept)return [];
@@ -70,13 +93,19 @@ function renderCharts(counts){
 function renderRows(){
  const label=(selectedDept?selectedDept+' · ':'')+(selected==='all'?'ปัญหาแจ้งล่าสุด':(statuses.find(a=>a[0]===selected)?.[1]||'ปัญหาที่เลือก'));
  $('listTitle').textContent=label+' (ตามสิทธิ์ผู้ใช้)';
- const filtered=base.flatMap(j=>entriesFor(j)).filter(e=>(selected==='all'||e.chartStatus===selected)&&(!selectedDept||e.department===selectedDept)).sort((a,b)=>dt(b.job)-dt(a.job)||String(b.job.createdDateTime||'').localeCompare(String(a.job.createdDateTime||'')));
- const count=expanded?pageSize:6,pageCount=Math.max(1,Math.ceil(filtered.length/count));page=Math.min(page,pageCount-1);
+ const filtered=base.flatMap(j=>issueRowsFor(j)).filter(e=>(selected==='all'||e.statuses.has(selected))&&(!selectedDept||e.departments.includes(selectedDept)))
+ .sort((a,b)=>dt(b.job)-dt(a.job)||Number(a.issue.issue_number||0)-Number(b.issue.issue_number||0));
+ const count=expanded?pageSize:6,pageCount=Math.max(1,Math.ceil(filtered.length/count));page=Math.max(0,Math.min(page,pageCount-1));
  const show=filtered.slice(page*count,(page+1)*count);
- $('jobRows').innerHTML=show.length?show.map(e=>{const j=e.job,i=e.issue,st=e.chartStatus,status=statuses.find(a=>a[0]===st)?.[1]||'ไม่ระบุ',url=window.QA?.jobUrl?.(j.jobId)||'job.html?id='+encodeURIComponent(j.jobId);
- const route=`${j.fromDepartment||'—'} → ${e.department||'—'}`;
- const problem=`ปัญหา ${i.issue_number??'—'}: ${i.description||j.problemDetail||'—'}`;
- return `<a class="job-row" href="${safe(url)}" title="เปิดใบงาน ${safe(j.carCode||j.jobId)} / ${safe(problem)}"><span><b>${safe(j.carCode||j.jobId||'—')}</b></span><span title="${safe(j.customerName)}">${safe(j.customerName||'ไม่ระบุ')}</span><span title="${safe(j.serialNo)}">${safe(j.serialNo||'—')}</span><span class="route" title="${safe(route)}">${safe(route)}</span><span title="${safe(problem)}">${safe(problem)}</span><span><i class="pill ${safe(st)}">${safe(status)}</i></span><span>${safe(timeText(j))}</span></a>`}).join(''):'<div class="empty">ไม่พบรายการปัญหา</div>';
+ $('jobRows').innerHTML=show.length?show.map(e=>{
+  const j=e.job,i=e.issue,st=issueRowStatus(e),status=st==='MIXED'?'หลายสถานะ':(statuses.find(a=>a[0]===st)?.[1]||'ไม่ระบุ');
+  const baseUrl=window.QA?.jobUrl?.(j.jobId)||'vnext-job.html?id='+encodeURIComponent(j.jobId);
+  const url=baseUrl.split('#')[0]+'#issue-'+encodeURIComponent(String(i.issue_id));
+  const route=`${j.fromDepartment||'—'} → ${e.departments.join(', ')||'—'}`;
+  const problem=`ปัญหา ${i.issue_number??'—'}: ${i.description||j.problemDetail||'—'}`;
+  const issueCode=displayIssueCode(j,e.assignments[0],i);
+  return `<a class="job-row" href="${safe(url)}" title="เปิดปัญหา ${safe(issueCode)}"><span><b>${safe(issueCode)}</b></span><span title="${safe(j.customerName)}">${safe(j.customerName||'ไม่ระบุ')}</span><span title="${safe(j.serialNo)}">${safe(j.serialNo||'—')}</span><span class="route" title="${safe(route)}">${safe(route)}</span><span title="${safe(problem)}">${safe(problem)}</span><span><i class="pill ${safe(st)}">${safe(status)}</i></span><span>${safe(timeText(j))}</span></a>`;
+ }).join(''):'<div class="empty">ไม่พบรายการปัญหา</div>';
  $('viewAll').textContent=expanded?'แสดง 6 ปัญหาล่าสุด':'ดูทั้งหมด ('+filtered.length+')';$('pagination').hidden=!expanded||filtered.length<=pageSize;$('prevPage').disabled=page===0;$('nextPage').disabled=page>=pageCount-1;$('pageInfo').textContent=`หน้า ${page+1} / ${pageCount}`;
  document.querySelectorAll('.stat').forEach(el=>el.classList.toggle('active',el.dataset.status===selected));
 }
@@ -91,6 +120,9 @@ async function loadAssignments(jobs){
    if(error)throw new Error(`${j.jobId}: ${error.message}`);
    if(!data||!Array.isArray(data.assignments)||data.assignments.some(a=>!Array.isArray(a.issues)))throw new Error(`${j.jobId}: API ไม่ส่งข้อมูลปัญหาแยกตามแผนก`);
    j.carCode=String(data.car_code||j.carCode||j.jobId);
+   // Stable issue code is built from qa_issue_items.issue_number in qa_vnext_job_detail.
+   // Dashboard does not require a second optional RPC merely to render a list.
+   j.issueCodes=new Map();
    j.departmentAssignments=data.assignments.map(a=>({department:String(a.department_code||'').trim(),assignmentId:String(a.assignment_id||''),rawStatus:String(a.status||'').toUpperCase(),chartStatus:groupStatus(a.status),issues:Array.isArray(a.issues)?a.issues:[]}));
   }
  });await Promise.all(workers);
@@ -123,7 +155,7 @@ async function load(){
      while(nextIndex<jobs.length){const j=jobs[nextIndex++];try{await loadAssignments([j]);allowed.push(j)}catch(e){failed++;}}
    }));
    all=allowed.sort((a,b)=>dt(b)-dt(a));page=0;render();
-   $('feedback').textContent=`รายการที่มีสิทธิ์เข้าถึง ${all.reduce((n,j)=>n+entriesFor(j).length,0)} ปัญหา${failed?' · บางใบงานไม่สามารถอ่านรายละเอียดได้ '+failed+' งาน':''}`;
+   $('feedback').textContent=`รายการที่มีสิทธิ์เข้าถึง ${all.reduce((n,j)=>n+issueRowsFor(j).length,0)} ปัญหา${failed?' · บางใบงานไม่สามารถอ่านรายละเอียดได้ '+failed+' งาน':''}`;
  }catch(e){all=[];base=[];receiverError=String(e?.message||e);render();
    $('feedback').textContent='โหลดรายการที่มีสิทธิ์ดูไม่สำเร็จ: '+receiverError;
  }
