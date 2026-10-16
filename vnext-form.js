@@ -15,7 +15,7 @@
  .vn-checks{display:flex;flex-wrap:wrap;gap:9px}.vn-checks label{border:1px solid #dae1ea;display:flex;align-items:center;gap:7px;padding:8px 10px;border-radius:8px;font-weight:400}
  .vn-checks input{width:auto}.vn-card textarea{min-height:82px}.vn-btn{border:1px solid #bdcad6;border-radius:8px;padding:10px 13px;cursor:pointer;background:#f1f5f9}
  .vn-files{font-size:12px;color:#526276}.vn-note{font-size:13px;color:#5b6675}
- .vn-source-buttons{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 12px}.vn-source-buttons button{background:#f1f5f9;color:#1f2937;border:1px solid #cbd5e1;border-radius:9px;padding:10px 18px;font-weight:700;cursor:pointer}.vn-source-buttons button.active{background:#14274c;color:#fff;border-color:#14274c}
+ .vn-source-buttons{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 12px}.vn-source-buttons button{background:#f1f5f9;color:#1f2937;border:1px solid #cbd5e1;border-radius:9px;padding:10px 18px;font-family:Arial,sans-serif;font-size:16px;font-weight:600;cursor:pointer}.vn-source-buttons button.active{background:#14274c;color:#fff;border-color:#14274c}
  .vn-checks label{font-size:13px;font-weight:700;position:relative;cursor:pointer}.vn-checks label:has(input:checked){background:#14274c;color:#fff;border-color:#14274c}.vn-checks input{position:absolute;opacity:0;width:0;height:0}
  .vn-file-grid{display:flex;flex-wrap:wrap;gap:9px;margin:10px 0}.vn-file-item{width:125px;border:1px solid #e2e8f0;background:#f8fafc;border-radius:9px;padding:6px}.vn-file-item img,.vn-file-item video{width:100%;height:78px;object-fit:contain;border-radius:6px;background:white}.vn-file-item textarea{width:100%;font-size:12px;min-height:53px;resize:vertical}.vn-file-item button{font-size:12px;padding:4px 7px}.vn-file-item span{display:block;height:78px;text-align:center;padding-top:20px;color:#64748b}
  /* V38: visual spacing inside each issue only; no changes to form logic */
@@ -38,7 +38,7 @@
  const oldProblem=$('problemDetail')?.closest('.card');if(!oldProblem)return;
  const panel=document.createElement('section');panel.className='card';panel.id='vnPanel';
  panel.innerHTML=`<div class="section-title">2. ปัญหาและฝ่ายรับเรื่อง</div><p class="vn-note">เพิ่มได้หลายปัญหา เลือกหลายฝ่ายต่อปัญหา และใช้เลขงานร่วมกัน</p>
- <div id="vnHeader" class="vn-row"><label>ประเภทงาน<select id="vnSource"><option value="PRODUCTION">Production</option><option value="AFTERSALES">Aftersales</option></select></label><label>Customer Name<input id="vnCustomer" maxlength="200"></label><label>Country<input id="vnCountry" maxlength="120"></label></div>
+ <div id="vnHeader" class="vn-row"><label>ประเภทงาน<select id="vnSource"><option value="" selected>-- เลือกประเภทงาน --</option><option value="PRODUCTION">Production</option><option value="AFTERSALES">Aftersales</option></select></label><label>Customer Name<input id="vnCustomer" maxlength="200"></label><label>Country<input id="vnCountry" maxlength="120"></label></div>
  <label>Remark<textarea id="vnRemark" maxlength="20000" placeholder="หมายเหตุ (ถ้ามี)"></textarea></label>
  <div id="vnProblems"></div><button type="button" class="vn-btn" id="vnAdd">+ เพิ่มปัญหา</button>
  <p id="vnStatus" role="status" aria-live="polite"></p>`;
@@ -55,7 +55,7 @@
   const b=document.createElement('button');b.type='button';b.textContent=name;b.dataset.value=key;
   b.onclick=()=>{source.value=key;[...buttons.children].forEach(x=>{x.classList.toggle('active',x.dataset.value===key);x.setAttribute('aria-pressed',String(x.dataset.value===key))})};
   buttons.append(b);
- });top?.insertBefore(buttons,top.querySelector('.grid'));buttons.firstElementChild.click();
+ });top?.insertBefore(buttons,top.querySelector('.grid'));[...buttons.children].forEach(b=>b.setAttribute('aria-pressed','false'));
  $('toDepartment').closest('.field').style.display='none';$('toDepartment').required=false;
  $('category').required=false;$('problemDetail').required=false;
  const oldImages=$('imageInput').closest('.card');oldImages.style.display='none';
@@ -91,7 +91,7 @@
   updateFiles();box.querySelector('.vn-remove')?.addEventListener('click',()=>{save();problems.splice(problems.indexOf(p),1);render();});host.append(box);
  });}
  $('vnAdd').onclick=()=>{save();problems.push(create());render();};
- function collect(){save();if(!receivers.some(x=>x.enabled))throw new Error('ยังไม่ได้กำหนดฝ่ายรับเรื่องใน Settings');
+ function collect(){save();if(!['PRODUCTION','AFTERSALES'].includes($('vnSource').value))throw new Error('กรุณาเลือกประเภทงาน Production หรือ Aftersales ก่อนแจ้งงาน');if(!receivers.some(x=>x.enabled))throw new Error('ยังไม่ได้กำหนดฝ่ายรับเรื่องใน Settings');
  const issues=problems.map((p,i)=>{if(!p.category||!p.description.trim()||p.departments.length===0)throw new Error(`ปัญหา ${i+1}: กรอกประเภท รายละเอียด และฝ่ายรับเรื่องให้ครบ`);
  return {category_code:p.category,description:p.description.trim(),departments:p.departments};});
  const header={serialNo:$('serialNo').value.trim(),priority:$('priority').value||'NORMAL',impact:$('impact').value.trim(),location:$('location').value.trim(),downtimeMin:$('downtimeMin').value||'',
