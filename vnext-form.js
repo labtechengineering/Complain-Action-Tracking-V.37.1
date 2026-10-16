@@ -59,7 +59,7 @@
  $('toDepartment').closest('.field').style.display='none';$('toDepartment').required=false;
  $('category').required=false;$('problemDetail').required=false;
  const oldImages=$('imageInput').closest('.card');oldImages.style.display='none';
- const baseSubmit=$('submitBtn');baseSubmit.textContent='แจ้งงาน (หลายฝ่ายรับเรื่อง)';
+ const baseSubmit=$('submitBtn');baseSubmit.textContent='แจ้งงาน';
  function save(){for(const el of $('vnProblems').querySelectorAll('[data-issue]')){const i=problems.find(p=>p.id===+el.dataset.issue);if(!i)continue;i.category=el.querySelector('.vn-category').value;i.description=el.querySelector('.vn-detail').value;i.departments=[...el.querySelectorAll('.vn-dept:checked')].map(c=>c.value);}}
  function render(){const host=$('vnProblems');host.replaceChildren();problems.forEach((p,i)=>{
   const box=document.createElement('article');box.className='vn-card';box.dataset.issue=p.id;
