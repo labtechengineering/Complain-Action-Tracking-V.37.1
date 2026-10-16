@@ -5,7 +5,7 @@ const safe=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'
 const norm=v=>String(v??'').trim().toLowerCase();
 const dt=j=>{const s=String(j.createdDateTime||'');const d=new Date(s.replace(' ','T'));return Number.isNaN(+d)?0:+d};
 const timeText=j=>String(j.createdDateTime||'—');
-let all=[],base=[],selected='all',selectedDept='',expanded=false,page=0,receiverCodes=null,receiverError='',assignmentLoadErrors=0;const pageSize=20;
+let all=[],base=[],selected='all',selectedDept='',expanded=false,page=0,receiverCodes=null,receiverError='',assignmentLoadErrors=0,globalAggregate=null,summaryRequest=0;const pageSize=20;
 function bangkokKey(j){const s=String(j.createdDateTime||'');let m=s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);if(m)return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);return m?`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`:''}
 function weekKey(v){const d=new Date(v+'T12:00:00+07:00');if(isNaN(+d))return '';const day=(d.getUTCDay()+6)%7;d.setUTCDate(d.getUTCDate()-day+3);const first=new Date(Date.UTC(d.getUTCFullYear(),0,4));const n=1+Math.round(((d-first)/86400000-3+(first.getUTCDay()+6)%7)/7);return `${d.getUTCFullYear()}-W${String(n).padStart(2,'0')}`}
 function periodMatch(j){const type=$('filter').value;if(type==='all')return true;const key=bangkokKey(j);if(!key)return false;if(type==='day')return key===$('day').value;if(type==='week')return weekKey(key)===$('week').value;if(type==='month')return key.slice(0,7)===$('month').value;return key.slice(0,4)===$('year').value}
@@ -27,10 +27,17 @@ function deptAssignments(j){const p=window.QA?.profile||{}, dept=norm(p.departme
  if(scope==='closed')return rows.filter(a=>a.chartStatus==='CLOSED');
  return rows;
 }
-function searchMatch(j){const q=norm($('dashSearch').value);return !q||[j.jobId,j.customerName,j.country,j.serialNo,j.fromDepartment,j.toDepartment,j.problemDetail,j.status,j.location,j.category,...(j.departmentAssignments||[]).map(a=>a.department)].some(v=>norm(v).includes(q));}
+function searchMatch(j){const q=norm($('dashSearch').value);return !q||[j.carCode,j.jobId,j.customerName,j.country,j.serialNo,j.fromDepartment,j.toDepartment,j.problemDetail,j.status,j.location,j.category,...(j.departmentAssignments||[]).map(a=>a.department)].some(v=>norm(v).includes(q));}
 function recount(rows){const counts={IN_PROGRESS:0,WAITING_REVIEW:0,CLOSED:0};for(const j of rows)for(const e of entriesFor(j))if(e.chartStatus)counts[e.chartStatus]++;return counts;}
-function render(){base=all.filter(j=>periodMatch(j)&&searchMatch(j)&&deptAssignments(j).length>0);const counts=recount(base);
- $('nTotal').textContent=Object.values(counts).reduce((a,b)=>a+b,0).toLocaleString('th-TH');$('nProgress').textContent=counts.IN_PROGRESS.toLocaleString('th-TH');$('nReview').textContent=counts.WAITING_REVIEW.toLocaleString('th-TH');$('nDone').textContent=counts.CLOSED.toLocaleString('th-TH');$('period').textContent='';renderCharts(counts);renderRows();}
+function selectedGlobalCounts(){const c={IN_PROGRESS:0,WAITING_REVIEW:0,CLOSED:0};
+ for(const row of globalAggregate?.departments||[]){if(c[row.status]!==undefined)c[row.status]+=Number(row.count)||0;}return c;}
+function render(){base=all.filter(j=>periodMatch(j)&&searchMatch(j)&&deptAssignments(j).length>0);
+ const counts=selectedGlobalCounts();
+ $('nTotal').textContent=globalAggregate?Object.values(counts).reduce((a,b)=>a+b,0).toLocaleString('th-TH'):'—';
+ $('nProgress').textContent=globalAggregate?counts.IN_PROGRESS.toLocaleString('th-TH'):'—';
+ $('nReview').textContent=globalAggregate?counts.WAITING_REVIEW.toLocaleString('th-TH'):'—';
+ $('nDone').textContent=globalAggregate?counts.CLOSED.toLocaleString('th-TH'):'—';
+ $('period').textContent='';renderCharts(counts);renderRows();}
 
 function matchingAssignments(j){return deptAssignments(j).filter(a=>(selected==='all'||a.chartStatus===selected)&&(!selectedDept||a.department===selectedDept));}
 function listStatus(j,matching){const allInScope=deptAssignments(j);const relevant=selected==='all'&&!selectedDept?allInScope:matching;const types=[...new Set(relevant.map(a=>a.chartStatus).filter(Boolean))];if(types.length===1)return types[0];return 'MIXED';}
@@ -38,13 +45,13 @@ function listStatusText(j,matching){const st=listStatus(j,matching);if(st==='MIX
 function toggleChartFilter(status='',dept=''){
  selected=(selected===status&&selectedDept===dept)?'all':(status||'all');
  selectedDept=(selected==='all'&&!dept)?'':dept;
- expanded=false;page=0;renderCharts(recount(base));renderRows();
+ expanded=false;page=0;renderCharts(selectedGlobalCounts());renderRows();
  document.getElementById('listTitle').scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 function renderCharts(counts){
  const depts=receiverCodes||[];
  const byDept=new Map(depts.map(d=>[d,{IN_PROGRESS:0,WAITING_REVIEW:0,CLOSED:0}]));
- for(const j of base)for(const e of entriesFor(j)){const x=byDept.get(e.department);if(x&&e.chartStatus)x[e.chartStatus]++;}
+ for(const e of globalAggregate?.departments||[]){const x=byDept.get(e.department);if(x&&x[e.status]!==undefined)x[e.status]+=Number(e.count)||0;}
  const max=Math.max(1,...depts.map(d=>Object.values(byDept.get(d)).reduce((x,y)=>x+y,0)));
  const ticks=4;
  $('axis').innerHTML=Array.from({length:ticks+1},(_,i)=>`<span>${Math.round(max*(ticks-i)/ticks)}</span>`).join('');
@@ -62,20 +69,20 @@ function renderCharts(counts){
 
 function renderRows(){
  const label=(selectedDept?selectedDept+' · ':'')+(selected==='all'?'ปัญหาแจ้งล่าสุด':(statuses.find(a=>a[0]===selected)?.[1]||'ปัญหาที่เลือก'));
- $('listTitle').textContent=label;
+ $('listTitle').textContent=label+' (ตามสิทธิ์ผู้ใช้)';
  const filtered=base.flatMap(j=>entriesFor(j)).filter(e=>(selected==='all'||e.chartStatus===selected)&&(!selectedDept||e.department===selectedDept)).sort((a,b)=>dt(b.job)-dt(a.job)||String(b.job.createdDateTime||'').localeCompare(String(a.job.createdDateTime||'')));
  const count=expanded?pageSize:6,pageCount=Math.max(1,Math.ceil(filtered.length/count));page=Math.min(page,pageCount-1);
  const show=filtered.slice(page*count,(page+1)*count);
  $('jobRows').innerHTML=show.length?show.map(e=>{const j=e.job,i=e.issue,st=e.chartStatus,status=statuses.find(a=>a[0]===st)?.[1]||'ไม่ระบุ',url=window.QA?.jobUrl?.(j.jobId)||'job.html?id='+encodeURIComponent(j.jobId);
  const route=`${j.fromDepartment||'—'} → ${e.department||'—'}`;
  const problem=`ปัญหา ${i.issue_number??'—'}: ${i.description||j.problemDetail||'—'}`;
- return `<a class="job-row" href="${safe(url)}" title="เปิดใบงาน ${safe(j.jobId)} / ${safe(problem)}"><span><b>${safe(j.jobId||'—')}</b></span><span title="${safe(j.customerName)}">${safe(j.customerName||'ไม่ระบุ')}</span><span title="${safe(j.serialNo)}">${safe(j.serialNo||'—')}</span><span class="route" title="${safe(route)}">${safe(route)}</span><span title="${safe(problem)}">${safe(problem)}</span><span><i class="pill ${safe(st)}">${safe(status)}</i></span><span>${safe(timeText(j))}</span></a>`}).join(''):'<div class="empty">ไม่พบรายการปัญหา</div>';
+ return `<a class="job-row" href="${safe(url)}" title="เปิดใบงาน ${safe(j.carCode||j.jobId)} / ${safe(problem)}"><span><b>${safe(j.carCode||j.jobId||'—')}</b></span><span title="${safe(j.customerName)}">${safe(j.customerName||'ไม่ระบุ')}</span><span title="${safe(j.serialNo)}">${safe(j.serialNo||'—')}</span><span class="route" title="${safe(route)}">${safe(route)}</span><span title="${safe(problem)}">${safe(problem)}</span><span><i class="pill ${safe(st)}">${safe(status)}</i></span><span>${safe(timeText(j))}</span></a>`}).join(''):'<div class="empty">ไม่พบรายการปัญหา</div>';
  $('viewAll').textContent=expanded?'แสดง 6 ปัญหาล่าสุด':'ดูทั้งหมด ('+filtered.length+')';$('pagination').hidden=!expanded||filtered.length<=pageSize;$('prevPage').disabled=page===0;$('nextPage').disabled=page>=pageCount-1;$('pageInfo').textContent=`หน้า ${page+1} / ${pageCount}`;
  document.querySelectorAll('.stat').forEach(el=>el.classList.toggle('active',el.dataset.status===selected));
 }
 
 function updatePeriod(){const v=$('filter').value;for(const k of ['day','week','month','year'])$(k).hidden=k!==v;page=0;render()}
-function init(){const p=window.QA?.profile||{};$('welcome').textContent=`สวัสดี ${p.display_name||p.email||'ผู้ใช้งาน'} · ${p.department||'ระบบติดตามงาน'} — ยินดีต้อนรับ`;const now=new Date();const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);const v=Object.fromEntries(parts.map(x=>[x.type,x.value]));const day=`${v.year}-${v.month}-${v.day}`;$('day').value=day;$('month').value=day.slice(0,7);$('year').value=v.year;$('week').value=weekKey(day);$('filter').addEventListener('change',updatePeriod);document.querySelector('.charts').addEventListener('click',ev=>{const target=ev.target.closest('[data-chart-status],[data-chart-dept]');if(target){toggleChartFilter(target.dataset.chartStatus||'',target.dataset.chartDept||'');return;}const ring=ev.target.closest('#donut');if(!ring||ev.target.closest('.donut-center'))return;const rect=ring.getBoundingClientRect(),cx=rect.left+rect.width/2,cy=rect.top+rect.height/2,dx=ev.clientX-cx,dy=ev.clientY-cy,dist=Math.hypot(dx,dy);if(dist<rect.width*.32||dist>rect.width*.52)return;const angle=(Math.atan2(dx,-dy)*180/Math.PI+360)%360;const part=JSON.parse(ring.dataset.parts||'[]').find(p=>angle>=p.from*3.6&&angle<p.to*3.6);if(part)toggleChartFilter(part.s,'');});['day','week','month','year','dashScope'].forEach(id=>$(id).addEventListener('change',()=>{page=0;render()}));$('dashSearch').addEventListener('input',()=>{page=0;render()});$('refresh').addEventListener('click',load);document.querySelectorAll('.stat').forEach(el=>el.addEventListener('click',()=>{selected=el.dataset.status;selectedDept='';expanded=false;page=0;renderCharts(recount(base));renderRows()}));$('viewAll').addEventListener('click',()=>{expanded=!expanded;page=0;renderRows()});$('prevPage').addEventListener('click',()=>{page--;renderRows()});$('nextPage').addEventListener('click',()=>{page++;renderRows()});load()}
+function init(){const p=window.QA?.profile||{};$('welcome').textContent=`สวัสดี ${p.display_name||p.email||'ผู้ใช้งาน'} · ${p.department||'ระบบติดตามงาน'} — ยินดีต้อนรับ`;const now=new Date();const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);const v=Object.fromEntries(parts.map(x=>[x.type,x.value]));const day=`${v.year}-${v.month}-${v.day}`;$('day').value=day;$('month').value=day.slice(0,7);$('year').value=v.year;$('week').value=weekKey(day);$('filter').addEventListener('change',()=>{updatePeriod();refreshSummary();});document.querySelector('.charts').addEventListener('click',ev=>{const target=ev.target.closest('[data-chart-status],[data-chart-dept]');if(target){toggleChartFilter(target.dataset.chartStatus||'',target.dataset.chartDept||'');return;}const ring=ev.target.closest('#donut');if(!ring||ev.target.closest('.donut-center'))return;const rect=ring.getBoundingClientRect(),cx=rect.left+rect.width/2,cy=rect.top+rect.height/2,dx=ev.clientX-cx,dy=ev.clientY-cy,dist=Math.hypot(dx,dy);if(dist<rect.width*.32||dist>rect.width*.52)return;const angle=(Math.atan2(dx,-dy)*180/Math.PI+360)%360;const part=JSON.parse(ring.dataset.parts||'[]').find(p=>angle>=p.from*3.6&&angle<p.to*3.6);if(part)toggleChartFilter(part.s,'');});['day','week','month','year','dashScope'].forEach(id=>$(id).addEventListener('change',()=>{page=0;render();refreshSummary()}));$('dashSearch').addEventListener('input',()=>{page=0;render()});$('refresh').addEventListener('click',load);document.querySelectorAll('.stat').forEach(el=>el.addEventListener('click',()=>{selected=el.dataset.status;selectedDept='';expanded=false;page=0;renderCharts(recount(base));renderRows()}));$('viewAll').addEventListener('click',()=>{expanded=!expanded;page=0;renderRows()});$('prevPage').addEventListener('click',()=>{page--;renderRows()});$('nextPage').addEventListener('click',()=>{page++;renderRows()});load()}
 // The same permission-checked RPC used by the detail page supplies assignment statuses.
 // Deliberately fail the Dashboard load if any assignment detail fails; never show false zeros.
 async function loadAssignments(jobs){
@@ -83,24 +90,44 @@ async function loadAssignments(jobs){
   while(next.length){const j=next.shift();const {data,error}=await window.QA.client.rpc('qa_vnext_job_detail',{p_job_id:String(j.jobId)});
    if(error)throw new Error(`${j.jobId}: ${error.message}`);
    if(!data||!Array.isArray(data.assignments)||data.assignments.some(a=>!Array.isArray(a.issues)))throw new Error(`${j.jobId}: API ไม่ส่งข้อมูลปัญหาแยกตามแผนก`);
+   j.carCode=String(data.car_code||j.carCode||j.jobId);
    j.departmentAssignments=data.assignments.map(a=>({department:String(a.department_code||'').trim(),assignmentId:String(a.assignment_id||''),rawStatus:String(a.status||'').toUpperCase(),chartStatus:groupStatus(a.status),issues:Array.isArray(a.issues)?a.issues:[]}));
   }
  });await Promise.all(workers);
 }
+function dateRange(){const kind=$('filter').value;
+ if(kind==='day')return {from:$('day').value,to:$('day').value};
+ if(kind==='month'){const v=$('month').value;if(!/^\d{4}-\d{2}$/.test(v))return {from:null,to:null};const [y,m]=v.split('-').map(Number);return {from:v+'-01',to:new Date(Date.UTC(y,m,0)).toISOString().slice(0,10)};}
+ if(kind==='year'){const y=Number($('year').value);return y>=2020&&y<=2100?{from:y+'-01-01',to:y+'-12-31'}:{from:null,to:null};}
+ if(kind==='week'){const v=$('week').value,m=/^(\d{4})-W(\d{2})$/.exec(v);if(!m)return {from:null,to:null};const y=+m[1],w=+m[2],d=new Date(Date.UTC(y,0,4));d.setUTCDate(d.getUTCDate()-((d.getUTCDay()+6)%7)+7*(w-1));const from=d.toISOString().slice(0,10);d.setUTCDate(d.getUTCDate()+6);return {from,to:d.toISOString().slice(0,10)};}
+ return {from:null,to:null};}
+async function refreshSummary(){const seq=++summaryRequest;const dates=dateRange();
+ try{const {data,error}=await window.QA.client.rpc('qa_dashboard_issue_summary',{
+  p_scope:$('dashScope').value,p_date_from:dates.from,p_date_to:dates.to});
+  if(error)throw error;if(!data||!Array.isArray(data.departments))throw new Error('รูปแบบข้อมูลสถิติไม่ถูกต้อง');
+  if(seq!==summaryRequest)return;globalAggregate=data;render();
+ }catch(e){if(seq!==summaryRequest)return;globalAggregate=null;render();$('feedback').textContent='โหลดสถิติรวมไม่สำเร็จ: '+String(e?.message||e);}}
 async function load(){
- $('feedback').textContent='กำลังโหลดรายการงานและสถานะแต่ละแผนก...';
+ $('feedback').textContent='กำลังโหลดสถิติรวมและรายการงานที่มีสิทธิ์ดู...';
+ globalAggregate=null;
  try{
    const {data,error}=await window.QA.client.rpc('qa_vnext_receivers',{});if(error)throw error;
    if(!Array.isArray(data))throw new Error('Invalid receiver settings response');
    receiverCodes=[...new Set(data.filter(x=>x.enabled===true).map(x=>String(x.code||'').trim()).filter(Boolean))];receiverError='';
+   await refreshSummary();
    const result=await new Promise((resolve,reject)=>window.QA.run.withSuccessHandler(resolve).withFailureHandler(reject).searchJobs({}));
-   const jobs=result.jobs||[];await loadAssignments(jobs);all=jobs;
-   $('feedback').textContent=`โหลดข้อมูลเรียบร้อย ${all.reduce((n,j)=>n+entriesFor(j).length,0)} ปัญหา`; page=0;render();
- }catch(e){all=[];base=[];receiverError=String(e?.message||e);$('feedback').textContent='โหลดสถานะแผนกไม่สำเร็จ: '+receiverError;
-   $('jobRows').innerHTML='<div class="empty">ไม่สามารถยืนยันสถานะแผนกได้ กรุณากดแสดงข้อมูลอีกครั้ง</div>';
-   $('nTotal').textContent='—';$('nProgress').textContent='—';$('nReview').textContent='—';$('nDone').textContent='—';
-   $('plot').innerHTML='';$('donutTotal').textContent='—';$('donutLegend').innerHTML='';$('donut').style.background='#e4e8ef';
+   const jobs=result.jobs||[];
+   // Individual job details remain permission-gated. Their failure must not erase global statistics.
+   let failed=0;const allowed=[];let nextIndex=0;
+   await Promise.all(Array.from({length:Math.min(6,jobs.length)},async()=>{
+     while(nextIndex<jobs.length){const j=jobs[nextIndex++];try{await loadAssignments([j]);allowed.push(j)}catch(e){failed++;}}
+   }));
+   all=allowed.sort((a,b)=>dt(b)-dt(a));page=0;render();
+   $('feedback').textContent=`รายการที่มีสิทธิ์เข้าถึง ${all.reduce((n,j)=>n+entriesFor(j).length,0)} ปัญหา${failed?' · บางใบงานไม่สามารถอ่านรายละเอียดได้ '+failed+' งาน':''}`;
+ }catch(e){all=[];base=[];receiverError=String(e?.message||e);render();
+   $('feedback').textContent='โหลดรายการที่มีสิทธิ์ดูไม่สำเร็จ: '+receiverError;
  }
 }
+
 if(!window.QA?.run){document.addEventListener('DOMContentLoaded',()=>{$('feedback').textContent='ไม่พบระบบ API กรุณาตรวจสอบ config.js และ supabase-api.js'});}else document.addEventListener('DOMContentLoaded',()=>{window.QA.run.withSuccessHandler(init).withFailureHandler(e=>{$('feedback').textContent=e?.message||String(e)}).getSettings()});
 })();
