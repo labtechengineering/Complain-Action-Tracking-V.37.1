@@ -129,7 +129,13 @@ function renderRows(){
   const profile=window.QA?.profile||{};
   const pendingOwnDepartment=String(profile.role||'').toLowerCase()==='department_admin'&&e.assignments.some(a=>norm(a.department)===norm(profile.department)&&a.rawStatus==='IN_PROGRESS'&&Boolean(a.approvalRequestedAt));
   const headBadge=pendingOwnDepartment?'<span class="head-approval-flag" title="งานของแผนกคุณรอหัวหน้าอนุมัติ">⌛ รอคุณอนุมัติ</span>':'';
-  return `<a class="job-row" href="${safe(url)}" title="เปิดปัญหา ${safe(issueCode)}"><span title="${safe(issueCode)}"><b>${safe(issueCode)}</b></span><span title="${safe(j.customerName)}">${safe(j.customerName||'ไม่ระบุ')}</span><span title="${safe(j.serialNo)}">${safe(j.serialNo||'—')}</span><span class="route" title="${safe(route)}">${safe(route)}</span><span title="${safe(problem)}">${safe(problem)}</span><span><i class="pill ${safe(st)}">${safe(status)}</i>${headBadge}</span><span title="${safe(timeText(j))}">${safe(timeText(j))}</span></a>`;
+  // Final review belongs only to the department admin of the originating department.
+  // A receiver's department admin must not see this prompt for other origin departments.
+  const pendingRequesterReview=String(profile.role||'').toLowerCase()==='department_admin'
+    &&norm(j.fromDepartment)===norm(profile.department)
+    &&e.assignments.some(a=>a.rawStatus==='WAITING_REVIEW');
+  const requesterBadge=pendingRequesterReview?'<span class="head-approval-flag" title="งานที่แผนกคุณแจ้งออกไปรอตรวจรับ">⌛ รอคุณตรวจสอบ</span>':'';
+  return `<a class="job-row" href="${safe(url)}" title="เปิดปัญหา ${safe(issueCode)}"><span title="${safe(issueCode)}"><b>${safe(issueCode)}</b></span><span title="${safe(j.customerName)}">${safe(j.customerName||'ไม่ระบุ')}</span><span title="${safe(j.serialNo)}">${safe(j.serialNo||'—')}</span><span class="route" title="${safe(route)}">${safe(route)}</span><span title="${safe(problem)}">${safe(problem)}</span><span><i class="pill ${safe(st)}">${safe(status)}</i>${headBadge}${requesterBadge}</span><span title="${safe(timeText(j))}">${safe(timeText(j))}</span></a>`;
  }).join(''):'<div class="empty">ไม่พบรายการปัญหา</div>';
  $('viewAll').textContent=expanded?'แสดง 6 ปัญหาล่าสุด':'ดูทั้งหมด ('+filtered.length+')';$('pagination').hidden=!expanded||filtered.length<=pageSize;$('prevPage').disabled=page===0;$('nextPage').disabled=page>=pageCount-1;$('pageInfo').textContent=`หน้า ${page+1} / ${pageCount}`;
  document.querySelectorAll('.stat').forEach(el=>el.classList.toggle('active',el.dataset.status===selected));
