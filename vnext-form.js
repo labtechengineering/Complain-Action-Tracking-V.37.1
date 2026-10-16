@@ -44,7 +44,7 @@
  <p id="vnStatus" role="status" aria-live="polite"></p>`;
  oldProblem.before(panel);oldProblem.style.display='none';
  // V38 creates its own new-job header; keep legacy hidden fields for DB compatibility.
- for(const id of ['issuerName','fromDepartment','toDepartment','priority','impact','location','downtimeMin']){
+ for(const id of ['issuerName','fromDepartment','toDepartment','priority','impact','location','downtimeMin','customerNameInput','countryInput']){
   const el=$(id);if(el?.closest('.field'))el.closest('.field').style.display='none';
  }
  const top=$('serialNo')?.closest('.card');const vnHeader=$('vnHeader');if(top&&vnHeader)top.append(vnHeader);

@@ -12,7 +12,7 @@
   <script src="navigation.js?v=41"></script>
   <script src="v42-menu.js?v=42" defer></script>
   <script src="v38-image-editor.js?v=38.0.0" defer></script>
-  <script src="vnext-form.js?v=47.0" defer></script>
+  <script src="vnext-form.js?v=50.2" defer></script>
   <style>.qa-auth-loading > :not(script):not(style){display:none!important} .qa-app-content{min-width:0}</style>
 
   <base target="_self">
@@ -224,6 +224,10 @@
 
   </style>
 
+<style>/* V50.2: old header inputs remain as compatibility fields but must not display */
+#customerNameInput, #countryInput {display:none!important}
+.field:has(> label[for="customerNameInput"]), .field:has(> label[for="countryInput"]) {display:none!important}
+</style>
 </head>
 
 <body class="qa-auth-loading">
