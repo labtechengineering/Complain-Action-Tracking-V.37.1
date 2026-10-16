@@ -13,12 +13,53 @@ async function mediaFor(issueIds,assignmentId,canEdit=false){const permitted=med
  const note=canEdit?`<label>หมายเหตุ<textarea class="media-note-input" data-attachment="${esc(m.attachment_id)}" maxlength="2000">${esc(m.note||'')}</textarea></label><button type="button" class="media-note-save" data-attachment="${esc(m.attachment_id)}">บันทึกหมายเหตุ</button>`:`<p class="media-note">${esc(m.note||'')}</p>`;
  return `<div class="media-item">${preview}${note}<a href="${esc(download)}" download target="_blank" rel="noopener">ดาวน์โหลด</a></div>`;
  }catch(e){return `<div class="media-item">ไม่สามารถสร้างลิงก์ไฟล์ได้: ${esc(e.message)}</div>`;}}));return `<div class="media">${cards.join('')}</div>`;}
+
+// V49.7: one screenshot per persisted receiver-change event. The server selects
+// the destination by qa_jobs.source_type, never by a client-supplied group.
+async function ensureHtml2Canvas(){if(window.html2canvas)return;
+ await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';s.onload=resolve;s.onerror=()=>reject(new Error('โหลดเครื่องมือสร้างภาพไม่สำเร็จ'));document.head.append(s);});}
+async function receiverChangePng(ev){await ensureHtml2Canvas();
+ const issue=(detail.assignments||[]).flatMap(a=>a.issues||[]).find(i=>i.issue_id===ev.issue_id);
+ const escField=(key,val)=>`<div style="display:flex;gap:12px;margin:8px 0"><b style="min-width:180px">${esc(key)}</b><span style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(val||'-')}</span></div>`;
+ const host=document.createElement('div');host.style.cssText='position:absolute;left:0;top:0;width:900px;background:#fff;padding:38px 42px;font:19px Arial,Tahoma,sans-serif;line-height:1.6;color:#15233b;z-index:999999';
+ host.innerHTML=`<h1 style="font-size:28px;margin:0 0 8px">Complain &amp; Action Tracking</h1><h2 style="font-size:24px;color:#b45309;margin:0 0 18px">แจ้งแก้ไขแผนกรับผิดชอบ</h2>
+ <section style="border:1px solid #cbd5e1;border-radius:12px;padding:22px">
+ ${escField('เลขปัญหา',String(detail.car_code||jobId)+'-'+String(ev.issue_number||issue?.issue_number||1).padStart(2,'0'))}
+ ${escField('เลขใบงาน',detail.car_code||jobId)}${escField('ประเภทงาน',detail.source_type)}
+ ${escField('Serial Number',detail.serial_no)}${escField('ลูกค้า',detail.customer_name)}
+ ${escField('ประเทศ',detail.country)}${escField('ฝ่ายผู้แจ้ง',detail.from_department)}
+ ${escField('Category',categoryName(issue?.category_code))}
+ ${escField('รายละเอียดปัญหา',issue?.description)}
+ ${escField('ฝ่ายรับเรื่องเดิม',(ev.old_departments||[]).join(', '))}
+ ${escField('ฝ่ายรับเรื่องใหม่',(ev.new_departments||[]).join(', '))}
+ </section><div style="margin-top:16px;font-size:16px;color:#475569">นี่เป็นการแก้ไขใบแจ้งเดิม ไม่ใช่ใบงานใหม่</div>`;
+ document.body.append(host);try{const canvas=await html2canvas(host,{scale:1,backgroundColor:'#fff',logging:false});return canvas.toDataURL('image/png').split(',')[1];}finally{host.remove();}
+}
+function receiverChangeRetryButton(ev){let b=document.getElementById('retryReceiverLine');
+ if(!b){b=document.createElement('button');b.id='retryReceiverLine';b.type='button';b.className='secondary';$('feedback').insertAdjacentElement('afterend',b);}
+ b.textContent='ส่ง LINE แจ้งแก้ไขอีกครั้ง';b.onclick=()=>notifyReceiverChange(ev);b.hidden=false;
+}
+async function notifyReceiverChange(ev){
+ const btn=document.getElementById('retryReceiverLine');if(btn)btn.hidden=true;
+ try{setNote('บันทึกการเปลี่ยนแผนกแล้ว กำลังส่งภาพแจ้ง LINE...');
+  const png=await receiverChangePng(ev);
+  const {data,error}=await QA.client.functions.invoke('vnext-receiver-change-line',{body:{event_id:ev.event_id,png_base64:png}});
+  if(error)throw new Error(error.message||String(error));
+  if(data?.error)throw new Error(data.error);
+  if(data?.skipped)throw new Error(data.reason||'ยังไม่ตั้งค่ากลุ่ม LINE');
+  if(!data?.sent)throw new Error('LINE ไม่ยืนยันการส่ง');
+  sessionStorage.removeItem('qa-v49-pending-line:'+jobId);
+  setNote(data.already_sent?'เปลี่ยนแผนกสำเร็จ และ LINE เหตุการณ์นี้ส่งไปแล้ว':'เปลี่ยนแผนกสำเร็จ และส่งภาพแจ้งแก้ไขเข้า LINE แล้ว');
+ }catch(e){setNote('เปลี่ยนแผนกใน Supabase สำเร็จแล้ว แต่ LINE ยังไม่สำเร็จ: '+e.message,true);receiverChangeRetryButton(ev);}
+}
+
 async function render(){if(!jobId){setNote('ไม่พบหมายเลขงาน',true);return;}
  try{await loadCategoryNames();detail=await rpc('qa_vnext_job_detail',{p_job_id:jobId});media=await rpc('qa_vnext_media_list',{p_job_id:jobId});
  detail.assignments=(detail.assignments||[]).filter(a=>(a.issues||[]).length>0);
  if(!Array.isArray(media))media=[];
  if(detail.can_manage_issues){try{const rec=await rpc('qa_vnext_receivers',{});receivingDepartments=Array.isArray(rec)?rec.map(x=>({code:String(x.department_code||x.code||''),enabled:x.enabled!==false})).filter(x=>x.code&&x.enabled):[];}catch(_e){receivingDepartments=[];}}
  const editBtn=$('editRequestBtn');if(editBtn){editBtn.hidden=!detail.can_manage_issues;editBtn.onclick=()=>{const target=document.querySelector('.issue-edit-controls');if(!target)return;document.querySelectorAll('.issue-edit-controls').forEach(x=>x.hidden=false);target.scrollIntoView({behavior:'smooth',block:'center'});};}
+ const pendingLine=sessionStorage.getItem('qa-v49-pending-line:'+jobId);if(pendingLine){try{receiverChangeRetryButton(JSON.parse(pendingLine));}catch(_e){sessionStorage.removeItem('qa-v49-pending-line:'+jobId);}}
  const warning=sessionStorage.getItem('qa-v38-line-warning:'+jobId);if(warning){setNote('บันทึกใบงานแล้ว แต่แจ้งเตือน LINE ไม่สำเร็จ: '+warning,true);sessionStorage.removeItem('qa-v38-line-warning:'+jobId);}
  $('details').innerHTML=`<h2>ข้อมูลการแจ้งเรื่อง</h2><div class="job-general-grid">
  <div class="job-general-field"><span class="job-general-label">ประเภทงาน:</span><span class="job-general-value">${esc(detail.source_type||'-')}</span></div>
@@ -80,9 +121,15 @@ async function render(){if(!jobId){setNote('ไม่พบหมายเลข
  for(const button of issueSheet.querySelectorAll('.issue-reassign-save'))button.addEventListener('click',async()=>{
   const root=button.closest('.issue-reassign');const codes=[...root.querySelectorAll('input[type="checkbox"]:checked')].map(x=>x.value);
   if(!codes.length){setNote('เลือกแผนกรับเรื่องอย่างน้อย 1 แผนก',true);return;}
-  if(!confirm('ยืนยันเปลี่ยนแผนกรับผิดชอบ? เลขปัญหาจะคงเดิม\nหมายเหตุ: ยังไม่ได้ส่ง LINE อัตโนมัติ'))return;
-  button.disabled=true;try{await rpc('qa_v49_change_issue_departments',{p_issue_id:button.dataset.issueId,p_departments:codes});
-   await render();setNote('เปลี่ยนแผนกสำเร็จ แต่ยังไม่ได้ส่ง LINE อัตโนมัติ กรุณาแจ้งฝ่ายรับเรื่องด้วยวิธีเดิม',true);}
+  if(!confirm('ยืนยันเปลี่ยนแผนกรับผิดชอบ? เลขปัญหาจะคงเดิม และจะส่งภาพแจ้งแก้ไขเข้า LINE กลุ่ม '+String(detail.source_type||'')+' หลังบันทึก'))return;
+  button.disabled=true;try{const result=await rpc('qa_v49_change_issue_departments',{p_issue_id:button.dataset.issueId,p_departments:codes});
+   if(!result.changed){await render();setNote('ไม่ได้เปลี่ยนแผนก (รายการที่เลือกเหมือนเดิม) จึงไม่ส่ง LINE ซ้ำ');}
+   else if(result.event_id){
+    const event={event_id:result.event_id,issue_id:button.dataset.issueId,issue_number:result.issue_number,old_departments:result.old_departments,new_departments:result.departments};
+    sessionStorage.setItem('qa-v49-pending-line:'+jobId,JSON.stringify(event));
+    await render();await notifyReceiverChange(event);
+   }else{setNote('บันทึกแล้ว แต่ไม่มีเลขเหตุการณ์แจ้งเตือน กรุณาตรวจ SQL V49.7',true);}
+  }
    catch(e){setNote('เปลี่ยนแผนกไม่สำเร็จ: '+e.message,true);button.disabled=false;}
  });
  // Response and approval areas stay as individual department panels below section 2.
