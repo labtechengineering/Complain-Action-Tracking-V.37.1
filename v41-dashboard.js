@@ -5,6 +5,20 @@ const safe=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'
 const norm=v=>String(v??'').trim().toLowerCase();
 const dt=j=>{const s=String(j.createdDateTime||'');const d=new Date(s.replace(' ','T'));return Number.isNaN(+d)?0:+d};
 const timeText=j=>String(j.createdDateTime||'—');
+function jobCarOrder(j){
+ // The most recently allocated CAR goes first, independent of job timestamps.
+ const m=String(j.carCode||'').match(/CAR[-\s]*(\d{4})[-\s]*(\d+)(?:-|$)/i);
+ return m?{year:Number(m[1]),seq:Number(m[2])}:null;
+}
+function compareLatestIssueRows(a,b){
+ const x=jobCarOrder(a.job),y=jobCarOrder(b.job);
+ if(x&&y){if(x.year!==y.year)return y.year-x.year;if(x.seq!==y.seq)return y.seq-x.seq;}
+ else if(x||y){return x?-1:1;}
+ const timeDiff=dt(b.job)-dt(a.job);if(timeDiff)return timeDiff;
+ const issueDiff=Number(b.issue.issue_number||0)-Number(a.issue.issue_number||0);
+ return issueDiff||String(b.issue.issue_id||'').localeCompare(String(a.issue.issue_id||''));
+}
+
 let all=[],base=[],selected='all',selectedDept='',expanded=false,page=0,receiverCodes=null,receiverError='',assignmentLoadErrors=0,globalAggregate=null,summaryRequest=0;const pageSize=20;
 function bangkokKey(j){const s=String(j.createdDateTime||'');let m=s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);if(m)return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);return m?`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`:''}
 function weekKey(v){const d=new Date(v+'T12:00:00+07:00');if(isNaN(+d))return '';const day=(d.getUTCDay()+6)%7;d.setUTCDate(d.getUTCDate()-day+3);const first=new Date(Date.UTC(d.getUTCFullYear(),0,4));const n=1+Math.round(((d-first)/86400000-3+(first.getUTCDay()+6)%7)/7);return `${d.getUTCFullYear()}-W${String(n).padStart(2,'0')}`}
@@ -94,7 +108,7 @@ function renderRows(){
  const label=(selectedDept?selectedDept+' · ':'')+(selected==='all'?'ปัญหาแจ้งล่าสุด':(statuses.find(a=>a[0]===selected)?.[1]||'ปัญหาที่เลือก'));
  $('listTitle').textContent=label+' (ตามสิทธิ์ผู้ใช้)';
  const filtered=base.flatMap(j=>issueRowsFor(j)).filter(e=>(selected==='all'||e.statuses.has(selected))&&(!selectedDept||e.departments.includes(selectedDept)))
- .sort((a,b)=>dt(b.job)-dt(a.job)||Number(a.issue.issue_number||0)-Number(b.issue.issue_number||0));
+ .sort(compareLatestIssueRows);
  const count=expanded?pageSize:6,pageCount=Math.max(1,Math.ceil(filtered.length/count));page=Math.max(0,Math.min(page,pageCount-1));
  const show=filtered.slice(page*count,(page+1)*count);
  $('jobRows').innerHTML=show.length?show.map(e=>{
