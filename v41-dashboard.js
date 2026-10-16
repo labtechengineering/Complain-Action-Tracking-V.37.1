@@ -4,7 +4,15 @@ const statuses=[['IN_PROGRESS','กำลังดำเนินงาน','#f4
 const safe=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const norm=v=>String(v??'').trim().toLowerCase();
 const dt=j=>{const s=String(j.createdDateTime||'');const d=new Date(s.replace(' ','T'));return Number.isNaN(+d)?0:+d};
-const timeText=j=>String(j.createdDateTime||'—');
+const timeText=j=>{
+ const raw=String(j.createdDateTime||'').trim();
+ if(!raw)return '—';
+ const date=new Date(raw.includes('T')?raw:raw.replace(' ','T'));
+ if(Number.isNaN(date.getTime()))return '—';
+ const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Bangkok',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(date);
+ const get=k=>parts.find(x=>x.type===k)?.value||'';
+ return `${get('day')}/${get('month')}/${get('year')} ${get('hour')}:${get('minute')}`;
+};
 function jobCarOrder(j){
  // The most recently allocated CAR goes first, independent of job timestamps.
  const m=String(j.carCode||'').match(/CAR[-\s]*(\d{4})[-\s]*(\d+)(?:-|$)/i);
@@ -121,7 +129,7 @@ function renderRows(){
   const profile=window.QA?.profile||{};
   const pendingOwnDepartment=String(profile.role||'').toLowerCase()==='department_admin'&&e.assignments.some(a=>norm(a.department)===norm(profile.department)&&a.rawStatus==='IN_PROGRESS'&&Boolean(a.approvalRequestedAt));
   const headBadge=pendingOwnDepartment?'<span class="head-approval-flag" title="งานของแผนกคุณรอหัวหน้าอนุมัติ">⏳ รอคุณอนุมัติ</span>':'';
-  return `<a class="job-row" href="${safe(url)}" title="เปิดปัญหา ${safe(issueCode)}"><span><b>${safe(issueCode)}</b>${headBadge}</span><span title="${safe(j.customerName)}">${safe(j.customerName||'ไม่ระบุ')}</span><span title="${safe(j.serialNo)}">${safe(j.serialNo||'—')}</span><span class="route" title="${safe(route)}">${safe(route)}</span><span title="${safe(problem)}">${safe(problem)}</span><span><i class="pill ${safe(st)}">${safe(status)}</i></span><span>${safe(timeText(j))}</span></a>`;
+  return `<a class="job-row" href="${safe(url)}" title="เปิดปัญหา ${safe(issueCode)}"><span title="${safe(issueCode)}"><b>${safe(issueCode)}</b></span><span title="${safe(j.customerName)}">${safe(j.customerName||'ไม่ระบุ')}</span><span title="${safe(j.serialNo)}">${safe(j.serialNo||'—')}</span><span class="route" title="${safe(route)}">${safe(route)}</span><span title="${safe(problem)}">${safe(problem)}</span><span><i class="pill ${safe(st)}">${safe(status)}</i>${headBadge}</span><span title="${safe(timeText(j))}">${safe(timeText(j))}</span></a>`;
  }).join(''):'<div class="empty">ไม่พบรายการปัญหา</div>';
  $('viewAll').textContent=expanded?'แสดง 6 ปัญหาล่าสุด':'ดูทั้งหมด ('+filtered.length+')';$('pagination').hidden=!expanded||filtered.length<=pageSize;$('prevPage').disabled=page===0;$('nextPage').disabled=page>=pageCount-1;$('pageInfo').textContent=`หน้า ${page+1} / ${pageCount}`;
  document.querySelectorAll('.stat').forEach(el=>el.classList.toggle('active',el.dataset.status===selected));
