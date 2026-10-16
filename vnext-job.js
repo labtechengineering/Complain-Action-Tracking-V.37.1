@@ -154,26 +154,32 @@ async function render(){if(!jobId){setNote('ไม่พบหมายเลข
  // A requester should not see an empty Section 3 before the receiving department accepts.
  // Keep it available for the receiving department (including its acceptance controls).
  if(detail.is_requester && !mine && !showResponse)continue;
- const priorRounds=completedRounds.get(String(a.assignment_id))||[];
- const roundNumber=priorRounds.length+1;
+ const priorRounds=(completedRounds.get(String(a.assignment_id))||[]).slice().sort((x,y)=>Number(x.round_no)-Number(y.round_no));
+ const roundNumber=(priorRounds.length?Math.max(...priorRounds.map(r=>Number(r.round_no)||0)):0)+1;
+ // A previously rejected job without a saved archive is NOT safe to edit: its old text
+ // may still reside in the current assignment. Preserve it until audited repair SQL runs.
+ const hasLegacyUnarchivedFailure=a.status==='IN_PROGRESS'&&!!String(a.requester_review_reason||'').trim()&&!a.approval_requested_at&&priorRounds.length===0;
+ const canEditCurrent=responseEditable&&!hasLegacyUnarchivedFailure;
+ const afterRejection=priorRounds.length>0&&a.status==='IN_PROGRESS'&&!a.approval_requested_at;
  const earlier=priorRounds.map(r=>`<section class="response-prior-round"><h3>บันทึกการแก้ไขครั้งที่ ${esc(r.round_no)} (อ่านอย่างเดียว)</h3><p class="muted">ผู้ตรวจรับไม่ผ่าน: ${esc(r.rejection_reason||'-')}</p><p><b>รายละเอียดปัญหา:</b> ${esc(r.receiver_problem_detail||'-')}</p><p><b>วิเคราะห์สาเหตุ:</b> ${esc(r.problem_analysis||'-')}</p><p><b>การแก้ไข:</b> ${esc(r.corrective_action||'-')}</p><p><b>กำหนดเสร็จ:</b> ${esc(r.due_date||'-')}</p></section>`).join('');
+ const oldDataNotice=hasLegacyUnarchivedFailure?'<div class="rework-unarchived">รายการนี้เคยตรวจรับไม่ผ่านก่อนที่ระบบบันทึกรอบจะพร้อม ข้อมูลการแก้ไขเดิมถูกล็อกเพื่อไม่ให้เขียนทับ กรุณาตรวจสอบและรัน SQL ซ่อมประวัติงานค้างเดิมก่อนเริ่มการแก้ไขครั้งที่ 2</div>':'';
  // Files attached in earlier rounds are view-only on rework; historical text is immutable in the DB.
- const responseMedia=showResponse?await mediaFor([],a.assignment_id,responseEditable&&priorRounds.length===0):'';
+ const responseMedia=showResponse?await mediaFor([],a.assignment_id,canEditCurrent&&priorRounds.length===0):'';
  el.innerHTML=`<h2>3. การดำเนินงาน — ${esc(a.department_code)} <span class="badge">${esc(label(a.status))}</span></h2>
- ${showResponse?`${earlier}<h3>${priorRounds.length?'รายละเอียดการแก้ไขครั้งที่ '+roundNumber:'รายละเอียดการดำเนินการ'}</h3>${priorRounds.length&&a.status==='IN_PROGRESS'&&!a.approval_requested_at?'<p class="rework-reminder">↩ ส่งกลับแก้ไข — กรุณาบันทึกข้อมูลการแก้ไขครั้งใหม่ โดยบันทึกเดิมแก้ไขไม่ได้</p>':''}<p><b>ผู้รับผิดชอบหลัก:</b> ${esc(a.responsible_name||a.responsible_user||'ยังไม่รับงาน')}</p>
- <div class="row"><label>วันกำหนดเสร็จ<input class="due" type="date" value="${esc(a.due_date||'')}" ${!responseEditable?'disabled':''}></label></div>
- <label class="field">รายละเอียดปัญหา<textarea class="recv" ${!responseEditable?'disabled':''}>${esc(a.receiver_problem_detail||'')}</textarea></label>
- <label class="field">วิเคราะห์สาเหตุ<textarea class="analysis" ${!responseEditable?'disabled':''}>${esc(a.problem_analysis||'')}</textarea></label>
- <label class="field">การแก้ไข<textarea class="fix" ${!responseEditable?'disabled':''}>${esc(a.corrective_action||'')}</textarea></label>
+ ${showResponse?`${earlier}${oldDataNotice}<h3>${priorRounds.length?'รายละเอียดการแก้ไขครั้งที่ '+roundNumber:'รายละเอียดการดำเนินการ'}</h3>${afterRejection?'<p class="rework-reminder">↩ ส่งกลับแก้ไข — กรุณากรอกข้อมูลการแก้ไขรอบใหม่ บันทึกครั้งก่อนอ่านได้อย่างเดียว</p>':''}<p><b>ผู้รับผิดชอบหลัก:</b> ${esc(a.responsible_name||a.responsible_user||'ยังไม่รับงาน')}</p>
+ <div class="row"><label>วันกำหนดเสร็จ<input class="due" type="date" value="${esc(a.due_date||'')}" ${!canEditCurrent?'disabled':''}></label></div>
+ <label class="field">รายละเอียดปัญหา<textarea class="recv" ${!canEditCurrent?'disabled':''}>${esc(a.receiver_problem_detail||'')}</textarea></label>
+ <label class="field">วิเคราะห์สาเหตุ<textarea class="analysis" ${!canEditCurrent?'disabled':''}>${esc(a.problem_analysis||'')}</textarea></label>
+ <label class="field">การแก้ไข<textarea class="fix" ${!canEditCurrent?'disabled':''}>${esc(a.corrective_action||'')}</textarea></label>
  <h3>ไฟล์แนบฝ่ายรับเรื่อง</h3>${responseMedia}
  ${a.unrelated_requested_at?`<p class="action-note">แจ้งไม่เกี่ยวข้อง: ${esc(a.unrelated_reason||'')} · รอผู้แจ้งยืนยัน</p>`:''}
- ${responseEditable?`<div class="no-print"><label>แนบรูป/วิดีโอ (สูงสุด 5 รูป และ 1 วิดีโอ)<input class="responseFiles" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" multiple></label></div>`:''}
+ ${canEditCurrent?`<div class="no-print"><label>แนบรูป/วิดีโอ (สูงสุด 5 รูป และ 1 วิดีโอ)<input class="responseFiles" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" multiple></label></div>`:''}
  <div class="no-print actions"></div>
  <h3>การตรวจสอบและอนุมัติ</h3><p>${pendingHeadReview?'<strong class="head-review-alert">⏳ รอหัวหน้าแผนกรับเรื่องอนุมัติ</strong>':a.approved_at?'อนุมัติเมื่อ '+esc(new Date(a.approved_at).toLocaleString('th-TH')):esc(label(a.status))}</p>` : ''}${!showResponse?'<div class="no-print actions"></div>':''}`;
  const actions=el.querySelector('.actions');
  function btn(text,action,color='secondary'){const b=document.createElement('button');b.textContent=text;b.className=color;b.onclick=()=>act(a,action,el);actions.append(b);}
  if(mine&&a.status==='OPEN'&&!a.unrelated_requested_at){if(QA.profile?.role==='system_admin'){const note=document.createElement('label');note.className='admin-accept-comment';note.textContent='หมายเหตุรับงานแทนแผนก';const area=document.createElement('textarea');area.className='admin-accept-input';area.placeholder='ข้อความถึงแผนกผู้รับเรื่อง';area.maxLength=2000;note.append(area);actions.append(note);}btn('รับงาน','ACCEPT');}
- if(responseEditable){btn('บันทึก','SAVE_DRAFT');if(QA.profile?.role==='department_admin')btn('ส่งงาน','HEAD_SEND');else btn('ส่งให้หัวหน้าตรวจสอบ','REQUEST_APPROVAL');}
+ if(canEditCurrent){btn('บันทึก','SAVE_DRAFT');if(QA.profile?.role==='department_admin')btn('ส่งงาน','HEAD_SEND');else btn('ส่งให้หัวหน้าตรวจสอบ','REQUEST_APPROVAL');}
  if(head&&pendingHeadReview){btn('อนุมัติและส่งงาน','APPROVE');btn('ส่งกลับให้แก้ไข','RETURN','danger');}
  // Only receivers from their own department may request "not related".
  // A system admin must use separately authorized admin controls, not act as
@@ -189,7 +195,7 @@ async function render(){if(!jobId){setNote('ไม่พบหมายเลข
   const input=[...el.querySelectorAll('.media-note-input')].find(x=>x.dataset.attachment===btnNote.dataset.attachment);
   if(!input)return;btnNote.disabled=true;try{await rpc('qa_v38_media_set_note',{p_attachment_id:btnNote.dataset.attachment,p_note:input.value});setNote('บันทึกหมายเหตุเรียบร้อย');}catch(e){setNote('บันทึกหมายเหตุไม่สำเร็จ: '+e.message,true)}finally{btnNote.disabled=false}
  });
- if(!responseEditable){for(const sel of ['.recv','.analysis','.fix']){const textarea=el.querySelector(sel);if(!textarea)continue;const plain=document.createElement('div');plain.className='read-text';plain.textContent=textarea.value||'-';textarea.replaceWith(plain)}}
+ if(!canEditCurrent){for(const sel of ['.recv','.analysis','.fix']){const textarea=el.querySelector(sel);if(!textarea)continue;const plain=document.createElement('div');plain.className='read-text';plain.textContent=textarea.value||'-';textarea.replaceWith(plain)}}
  list.append(el);
  // Action bar is a separate sibling, outside the section 3 card.
  if(actions.children.length){const outside=document.createElement('div');outside.className='department-action-bar no-print';outside.dataset.assignment=a.assignment_id;outside.append(...Array.from(actions.childNodes));actions.remove();list.append(outside);}
