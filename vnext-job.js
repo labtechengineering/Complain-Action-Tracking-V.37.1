@@ -105,7 +105,7 @@ async function render(){if(!jobId){setNote('ไม่พบหมายเลข
    if(displayedIssues.has(uniqueKey))continue;
    displayedIssues.add(uniqueKey);
 
-   cards.push(`<article class="issue issue-card" id="issue-${esc(i.issue_id)}" data-issue-id="${esc(i.issue_id)}"><h3><span class="issue-code">${esc(issueCodeFor(a,i))}</span> · ปัญหา ${esc(i.issue_number)} <span class="issue-category">${esc(categoryName(i.category_code))}</span></h3><p>${esc(i.description)}</p>${issueEditable?`<div class="no-print issue-edit-controls" hidden><label>แก้ไขรายละเอียดปัญหา<textarea class="issue-edit-description" data-issue-id="${esc(i.issue_id)}" maxlength="20000">${esc(i.description)}</textarea></label><button type="button" class="issue-edit-save" data-issue-id="${esc(i.issue_id)}">บันทึกการแก้ไขปัญหา</button></div>`:''}<b>ไฟล์แนบจากผู้แจ้ง</b>${await mediaFor([i.issue_id],null,issueEditable)}${issueEditable&&receivingDepartments.length?`<div class="no-print issue-reassign" data-issue-id="${esc(i.issue_id)}"><b>แก้ฝ่ายรับเรื่อง (ก่อนมีผู้รับงาน)</b><div class="receiver-checkboxes">${receivingDepartments.map(d=>`<label style="display:inline-flex;gap:6px;margin:6px 14px 6px 0"><input type="checkbox" value="${esc(d.code)}" ${detail.assignments.some(a2=>a2.department_code===d.code&&(a2.issues||[]).some(x=>x.issue_id===i.issue_id))?'checked':''}>${esc(d.code)}</label>`).join('')}</div><button type="button" class="issue-reassign-save" data-issue-id="${esc(i.issue_id)}">บันทึกเปลี่ยนแผนก</button></div>`:''}${issueEditable?`<div class="no-print"><label>เพิ่มไฟล์ของปัญหา ${esc(i.issue_number)}<input class="issueFiles" data-issue-number="${esc(i.issue_number)}" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" multiple></label></div>`:''}</article>`);
+   cards.push(`<article class="issue issue-card" id="issue-${esc(i.issue_id)}" data-issue-id="${esc(i.issue_id)}"><h3><span class="issue-code">${esc(issueCodeFor(a,i))}</span> · ปัญหา ${esc(i.issue_number)} <span class="issue-category">${esc(categoryName(i.category_code))}</span></h3><p>${esc(i.description)}</p>${issueEditable?`<div class="no-print issue-edit-controls" hidden><label>แก้ไขรายละเอียดปัญหา<textarea class="issue-edit-description" data-issue-id="${esc(i.issue_id)}" maxlength="20000">${esc(i.description)}</textarea></label><button type="button" class="issue-edit-save" data-issue-id="${esc(i.issue_id)}">บันทึกการแก้ไขปัญหา</button></div>`:''}<b>ไฟล์แนบจากผู้แจ้ง</b>${await mediaFor([i.issue_id],null,issueEditable)}${issueEditable&&receivingDepartments.length?`<div class="no-print issue-reassign" data-issue-id="${esc(i.issue_id)}" data-original-department="${esc(a.department_code)}"><b>เปลี่ยนฝ่ายรับเรื่องจาก ${esc(a.department_code)} (ก่อนมีผู้รับงาน)</b><div class="receiver-checkboxes">${receivingDepartments.map(d=>`<label style="display:inline-flex;gap:6px;margin:6px 14px 6px 0"><input type="radio" name="receiver-${esc(a.assignment_id)}-${esc(i.issue_id)}" value="${esc(d.code)}">${esc(d.code)}</label>`).join('')}</div><button type="button" class="issue-reassign-save" data-issue-id="${esc(i.issue_id)}">บันทึกเปลี่ยนแผนก</button></div>`:''}${issueEditable?`<div class="no-print"><label>เพิ่มไฟล์ของปัญหา ${esc(i.issue_number)}<input class="issueFiles" data-issue-number="${esc(i.issue_number)}" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" multiple></label></div>`:''}</article>`);
   }
   deptGroup.innerHTML=`<h3 class="issue-dept-title">แผนก ${esc(a.department_code||'-')}</h3>${cards.join('')||'<p class="muted">ไม่มีรายการปัญหาสำหรับแผนกนี้</p>'}`;
   issueHost.append(deptGroup);
@@ -126,9 +126,22 @@ async function render(){if(!jobId){setNote('ไม่พบหมายเลข
   finally{inp.disabled=false;}
  });
  for(const button of issueSheet.querySelectorAll('.issue-reassign-save'))button.addEventListener('click',async()=>{
-  const root=button.closest('.issue-reassign');const codes=[...root.querySelectorAll('input[type="checkbox"]:checked')].map(x=>x.value);
-  if(!codes.length){setNote('เลือกแผนกรับเรื่องอย่างน้อย 1 แผนก',true);return;}
-  if(!confirm('ยืนยันเปลี่ยนแผนกรับผิดชอบ? เลขปัญหาจะคงเดิม และจะส่งภาพแจ้งแก้ไขเข้า LINE กลุ่ม '+String(detail.source_type||'')+' หลังบันทึก'))return;
+  const root=button.closest('.issue-reassign');
+  const selected=root.querySelector('input[type="radio"]:checked');
+  const original=root.dataset.originalDepartment;
+  const issueId=button.dataset.issueId;
+  if(!selected){setNote('กรุณาเลือกฝ่ายรับเรื่องใหม่สำหรับแผนก '+original,true);return;}
+  const target=selected.value;
+  // The existing RPC updates the complete receiver set for one issue. Preserve
+  // every other department when the user changes this one department card.
+  const current=[...new Set((detail.assignments||[])
+    .filter(a=>(a.issues||[]).some(i=>String(i.issue_id)===String(issueId)))
+    .map(a=>String(a.department_code)))];
+  if(!current.includes(original)){setNote('ข้อมูลฝ่ายรับเรื่องเปลี่ยนไป กรุณาโหลดใบงานใหม่',true);return;}
+  if(target===original){setNote('เลือกแผนกเดิม '+original+' จึงไม่มีการเปลี่ยนแปลงและไม่ส่ง LINE');return;}
+  if(current.includes(target)){setNote('ปัญหานี้ส่งให้แผนก '+target+' อยู่แล้ว กรุณาเลือกแผนกอื่นเพื่อไม่ให้การมอบหมายซ้ำกัน',true);return;}
+  const codes=current.map(x=>x===original?target:x);
+  if(!confirm('ยืนยันเปลี่ยนฝ่ายรับเรื่องจาก '+original+' เป็น '+target+'?\nแผนกอื่นคงเดิม เลขปัญหาไม่เปลี่ยน และระบบจะแจ้ง LINE กลุ่ม '+String(detail.source_type||'')+' หลังบันทึก'))return;
   button.disabled=true;try{const result=await rpc('qa_v49_change_issue_departments',{p_issue_id:button.dataset.issueId,p_departments:codes});
    if(!result.changed){await render();setNote('ไม่ได้เปลี่ยนแผนก (รายการที่เลือกเหมือนเดิม) จึงไม่ส่ง LINE ซ้ำ');}
    else if(result.event_id){
