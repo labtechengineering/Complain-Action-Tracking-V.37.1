@@ -181,6 +181,8 @@ async function render(){if(!jobId){setNote('ไม่พบหมายเลข
  });
  if(!responseEditable){for(const sel of ['.recv','.analysis','.fix']){const textarea=el.querySelector(sel);if(!textarea)continue;const plain=document.createElement('div');plain.className='read-text';plain.textContent=textarea.value||'-';textarea.replaceWith(plain)}}
  list.append(el);
+ // Action bar is a separate sibling, outside the section 3 card.
+ if(actions.children.length){const outside=document.createElement('div');outside.className='department-action-bar no-print';outside.dataset.assignment=a.assignment_id;outside.append(...Array.from(actions.childNodes));actions.remove();list.append(outside);}
  }
  renderTracker(detail);await renderHistory();
  }catch(e){setNote('อ่านใบงานไม่สำเร็จ: '+e.message,true);$('details').textContent='โปรดตรวจสิทธิ์ หรือกลับไปเปิดใบงานเดิม';}}
@@ -202,7 +204,9 @@ function renderTracker(d){
  const chips=$('departmentChips');chips.replaceChildren();
  all.forEach((a,i)=>{const b=document.createElement('button');b.type='button';b.textContent=a.department_code+' · '+label(a.status);b.onclick=()=>{const groups=[...document.querySelectorAll('.issue-department-group')];groups.forEach(g=>g.classList.toggle('issue-dept-highlight',g.dataset.assignment===String(a.assignment_id)));[...chips.children].forEach((c,j)=>c.classList.toggle('active',j===i));const match=groups.find(g=>g.dataset.assignment===String(a.assignment_id));(match||panels[i])?.scrollIntoView({behavior:'smooth',block:'center'});};chips.append(b)});
 }
+const pendingAssignmentActions=new Set();
 async function act(a,action,el){
+ if(pendingAssignmentActions.has(a.assignment_id))return;
  if(action==='UNRELATED_REQUEST'&&!( ['user','department_admin'].includes(QA.profile?.role)&&String(QA.profile?.department||'').toLowerCase()===String(a.department_code||'').toLowerCase())){setNote('ไม่มีสิทธิ์กดไม่เกี่ยวข้องสำหรับแผนกนี้',true);return;}
  if(['REQUESTER_PASS','REQUESTER_FAIL'].includes(action)&&!(QA.profile?.role==='department_admin'&&String(QA.profile?.department||'').toLowerCase()===String(detail?.from_department||'').toLowerCase())){setNote('สิทธิ์ตรวจรับเป็นของหัวหน้าแผนกผู้แจ้งเท่านั้น',true);return;}
  let data={};if(['SAVE_DRAFT','REQUEST_APPROVAL','HEAD_SEND'].includes(action)){data={receiver_problem_detail:el.querySelector('.recv').value,problem_analysis:el.querySelector('.analysis').value,corrective_action:el.querySelector('.fix').value,due_date:el.querySelector('.due').value};}
@@ -210,14 +214,27 @@ async function act(a,action,el){
  if(['RETURN','REQUESTER_FAIL','UNRELATED_REQUEST'].includes(action)){const reason=prompt(action==='RETURN'?'ระบุเหตุผลที่ไม่อนุมัติ':action==='REQUESTER_FAIL'?'ระบุเหตุผลที่ไม่ผ่าน':'ระบุเหตุผลที่ไม่เกี่ยวข้อง');if(!reason?.trim())return;data={reason:reason.trim()};}
  if(action==='ACCEPT'&&QA.profile.role==='system_admin'){data={comment:el.querySelector('.admin-accept-input')?.value.trim()||''};}
  if(['APPROVE','REQUESTER_PASS','UNRELATED_CONFIRM'].includes(action)&&!confirm('ยืนยันการดำเนินการ?'))return;
+ const actionBar=document.querySelector('.department-action-bar[data-assignment="'+CSS.escape(String(a.assignment_id))+'"]');
+ const buttons=[...(actionBar?.querySelectorAll('button')||[])];
+ pendingAssignmentActions.add(a.assignment_id);
+ buttons.forEach(b=>{b.disabled=true;b.setAttribute('aria-busy','true');b.dataset.originalText=b.textContent;});
+ const pressed=buttons.find(b=>b.dataset.originalText===({HEAD_SEND:'ส่งงาน',REQUEST_APPROVAL:'ส่งให้หัวหน้าตรวจสอบ',APPROVE:'อนุมัติและส่งงาน'}[action]||''));
+ if(pressed)pressed.textContent='กำลังบันทึก...';
  try{setNote('กำลังบันทึก...');let expected=a.version;
  if(['REQUEST_APPROVAL','HEAD_SEND'].includes(action)){
-   // Save any visible edits before requesting review; never silently discard input.
-   const saved=await rpc('qa_vnext_assignment_action',{p_assignment_id:a.assignment_id,p_action:'SAVE_DRAFT',p_expected_version:expected,p_data:data});expected=saved.version;
+   // Save visible edits first and use the newly returned version for the follow-up action.
+   const saved=await rpc('qa_vnext_assignment_action',{p_assignment_id:a.assignment_id,p_action:'SAVE_DRAFT',p_expected_version:expected,p_data:data});
+   expected=Number(saved.version);
+   if(!Number.isInteger(expected)||expected<1)throw new Error('INVALID_SAVED_VERSION');
  }
  const {data:result,error}=await QA.client.rpc('qa_vnext_assignment_action',{p_assignment_id:a.assignment_id,p_action:action,p_expected_version:expected,p_data:['REQUEST_APPROVAL','HEAD_SEND'].includes(action)?{}:data});if(error)throw error;
  if(action==='SAVE_DRAFT'){const files=[...el.querySelector('.responseFiles')?.files||[]];if(files.length)await uploadResponse(a.assignment_id,files);}
- setNote('บันทึกสำเร็จ');await render();}catch(e){setNote('ไม่สามารถบันทึกได้: '+e.message,true);}}
+ setNote('บันทึกสำเร็จ');await render();
+ }catch(e){
+  if(String(e.message||e).includes('VERSION_CONFLICT')){setNote('ข้อมูลใบงานถูกอัปเดตระหว่างเปิดหน้านี้ กำลังโหลดข้อมูลล่าสุด กรุณาตรวจสอบก่อนกดส่งงานอีกครั้ง',true);await render();}
+  else setNote('ไม่สามารถบันทึกได้: '+e.message,true);
+ }finally{pendingAssignmentActions.delete(a.assignment_id);buttons.forEach(b=>{b.disabled=false;b.removeAttribute('aria-busy');if(b.dataset.originalText)b.textContent=b.dataset.originalText;});}
+}
 async function adminRollback(a,target){
  if(QA.profile?.role!=='system_admin'){setNote('เฉพาะ System Admin เท่านั้น',true);return;}
  const reason=prompt('ระบุเหตุผลในการย้อนสถานะของแผนก '+a.department_code+' จาก '+label(a.status)+' ไป '+label(target)+' (จำเป็น)');

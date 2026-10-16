@@ -27,9 +27,18 @@
 @keyframes track-pulse{0%,100%{box-shadow:0 0 0 5px var(--soft),0 6px 16px rgba(37,99,235,.12)}50%{box-shadow:0 0 0 8px var(--soft),0 8px 20px rgba(37,99,235,.2)}}
 @media(max-width:680px){.job-topbar{align-items:flex-start;flex-wrap:wrap}.job-toolbar{width:100%;justify-content:flex-end}.job-general-grid{grid-template-columns:1fr;gap:10px}.tracker-stages .track-node{width:39px;height:39px;font-size:17px}.tracker-stages::before,.tracker-stages::after{top:32px}.tracker-stages .track-stage{font-size:11px}}
 @media print{.job-topbar{margin-bottom:12px}.tracker-stages .track-stage.current .track-node{animation:none}.job-general-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
-.head-review-alert{display:inline-block;padding:7px 11px;background:#fff0c2;border:1px solid #eecb73;border-radius:7px;color:#8a4b00}</style></head>
+.head-review-alert{display:inline-block;padding:7px 11px;background:#fff0c2;border:1px solid #eecb73;border-radius:7px;color:#8a4b00}
+/* V50.4: external action bar only; form fields and section 3 remain unchanged */
+.department-action-bar{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;padding:1px 4px 13px;margin:-5px 0 12px}
+.department-action-bar button{min-height:43px;padding:11px 18px;font-weight:700;border-radius:9px;transition:background-color .12s ease,transform .08s ease,box-shadow .12s ease;box-shadow:0 3px 0 rgba(12,28,55,.25);margin:2px 0}
+.department-action-bar button:hover:not(:disabled){filter:brightness(.93)}
+.department-action-bar button:active:not(:disabled){transform:translateY(3px);box-shadow:0 0 0 rgba(12,28,55,.25)}
+.department-action-bar button:disabled{cursor:wait;opacity:.62;box-shadow:none;transform:translateY(2px)}
+.department-action-bar button[aria-busy="true"]{background:#64748b;color:white}
+@media print{.department-action-bar{display:none!important}}
+</style></head>
 <body class="qa-auth-loading"><main class="page" id="captureArea"><div class="job-topbar"><h1>Complain &amp; Action Tracking</h1><div class="job-toolbar no-print"><button id="editRequestBtn" type="button" hidden>แก้ไขใบแจ้ง</button><button id="pdfButton">Export PDF</button></div></div>
 <div id="feedback" role="status" class="vn-status"></div>
 <section id="jobTracker" class="sheet job-tracker" aria-label="สถานะใบงาน"><h2 id="jobTrackerNumber"></h2><div class="tracker-stages"><span class="track-stage" data-step="OPEN"><span class="track-node" aria-hidden="true">1</span>แจ้งงาน</span><span class="track-stage" data-step="IN_PROGRESS"><span class="track-node" aria-hidden="true">2</span>ดำเนินการ</span><span class="track-stage" data-step="WAITING_REVIEW"><span class="track-node" aria-hidden="true">3</span>รอตรวจสอบ</span><span class="track-stage" data-step="CLOSED"><span class="track-node" aria-hidden="true">4</span>สำเร็จ</span></div><div id="departmentChips" class="department-chips"></div></section>
 <section id="details" class="sheet">กำลังโหลดรายละเอียด...</section><div id="assignments"></div><section id="jobHistory" class="sheet"><h2>ประวัติการดำเนินงาน</h2><div id="historyRows" class="history-rows"></div></section></main>
-<script src="vnext-job.js?v=50.0" defer></script></body></html>
+<script src="vnext-job.js?v=50.4" defer></script></body></html>
