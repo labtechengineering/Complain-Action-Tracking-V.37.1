@@ -22,7 +22,7 @@ async function receiverChangePng(ev){await ensureHtml2Canvas();
  const issue=(detail.assignments||[]).flatMap(a=>a.issues||[]).find(i=>i.issue_id===ev.issue_id);
  const escField=(key,val)=>`<div style="display:flex;gap:12px;margin:8px 0"><b style="min-width:180px">${esc(key)}</b><span style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(val||'-')}</span></div>`;
  const host=document.createElement('div');host.style.cssText='position:absolute;left:0;top:0;width:900px;background:#fff;padding:38px 42px;font:19px Arial,Tahoma,sans-serif;line-height:1.6;color:#15233b;z-index:999999';
- host.innerHTML=`<h1 style="font-size:28px;margin:0 0 8px">Complain &amp; Action Tracking</h1><h2 style="font-size:24px;color:#b45309;margin:0 0 18px">แจ้งแก้ไขแผนกรับผิดชอบ</h2>
+ host.innerHTML=`<h1 style="font-size:28px;margin:0 0 8px">Complain &amp; Action Tracking</h1><h2 style="font-size:24px;color:#b45309;margin:0 0 18px">${esc(ev.confirm_original?'ยืนยันฝ่ายรับเรื่องเดิม':'แจ้งแก้ไขแผนกรับผิดชอบ')}</h2>
  <section style="border:1px solid #cbd5e1;border-radius:12px;padding:22px">
  ${escField('เลขปัญหา',String(detail.car_code||jobId)+'-'+String(ev.issue_number||issue?.issue_number||1).padStart(2,'0'))}
  ${escField('เลขใบงาน',detail.car_code||jobId)}${escField('ประเภทงาน',detail.source_type)}
@@ -63,8 +63,10 @@ async function render(){if(!jobId){setNote('ไม่พบหมายเลข
  if(roundLoadWarning)setNote(roundLoadWarning,true);
  detail.assignments=(detail.assignments||[]).filter(a=>(a.issues||[]).length>0);
  if(!Array.isArray(media))media=[];
- if(detail.can_manage_issues){try{const rec=await rpc('qa_vnext_receivers',{});receivingDepartments=Array.isArray(rec)?rec.map(x=>({code:String(x.department_code||x.code||''),enabled:x.enabled!==false})).filter(x=>x.code&&x.enabled):[];}catch(_e){receivingDepartments=[];}}
- const editBtn=$('editRequestBtn');if(editBtn){editBtn.hidden=!detail.can_manage_issues;editBtn.onclick=()=>{const target=document.querySelector('.issue-edit-controls');if(!target)return;document.querySelectorAll('.issue-edit-controls').forEach(x=>x.hidden=false);target.scrollIntoView({behavior:'smooth',block:'center'});};}
+ const pendingUnrelated=(detail.assignments||[]).filter(a=>a.unrelated_requested_at && ['OPEN','IN_PROGRESS','CANCELLED'].includes(a.status));
+ const canResolveUnrelated=Boolean(detail.is_requester||QA.profile?.role==='system_admin')&&pendingUnrelated.length>0;
+ if(detail.can_manage_issues||canResolveUnrelated){try{const rec=await rpc('qa_vnext_receivers',{});receivingDepartments=Array.isArray(rec)?rec.map(x=>({code:String(x.department_code||x.code||''),enabled:x.enabled!==false})).filter(x=>x.code&&x.enabled):[];}catch(_e){receivingDepartments=[];}}
+ const editBtn=$('editRequestBtn');if(editBtn){editBtn.hidden=!(detail.can_manage_issues||canResolveUnrelated);editBtn.textContent=canResolveUnrelated?'จัดการงานไม่เกี่ยวข้อง':'แก้ไขใบแจ้ง';editBtn.onclick=()=>{const pending=document.querySelector('.unrelated-decision');if(canResolveUnrelated&&pending){pending.scrollIntoView({behavior:'smooth',block:'center'});pending.classList.add('issue-dept-highlight');return;}document.querySelectorAll('.issue-edit-controls').forEach(x=>x.hidden=false);const target=document.querySelector('.issue-edit-controls, .issue-reassign');if(target)target.scrollIntoView({behavior:'smooth',block:'center'});else setNote('งานนี้ไม่อยู่ในช่วงที่สามารถแก้ไขใบแจ้งได้',true);};}
  const pendingLine=sessionStorage.getItem('qa-v49-pending-line:'+jobId);if(pendingLine){try{receiverChangeRetryButton(JSON.parse(pendingLine));}catch(_e){sessionStorage.removeItem('qa-v49-pending-line:'+jobId);}}
  const warning=sessionStorage.getItem('qa-v38-line-warning:'+jobId);if(warning){setNote('บันทึกใบงานแล้ว แต่แจ้งเตือน LINE ไม่สำเร็จ: '+warning,true);sessionStorage.removeItem('qa-v38-line-warning:'+jobId);}
  $('details').innerHTML=`<h2>ข้อมูลการแจ้งเรื่อง</h2><div class="job-general-grid">
@@ -104,7 +106,9 @@ async function render(){if(!jobId){setNote('ไม่พบหมายเลข
    const uniqueKey=String(a.assignment_id)+':'+String(i.issue_id);
    if(displayedIssues.has(uniqueKey))continue;
    displayedIssues.add(uniqueKey);
-   cards.push(`<article class="issue issue-card" id="issue-${esc(i.issue_id)}" data-issue-id="${esc(i.issue_id)}"><h3><span class="issue-code">${esc(issueCodeFor(a,i))}</span> · ปัญหา ${esc(i.issue_number)} <span class="issue-category">${esc(categoryName(i.category_code))}</span></h3><p>${esc(i.description)}</p>${issueEditable?`<div class="no-print issue-edit-controls" hidden><label>แก้ไขรายละเอียดปัญหา<textarea class="issue-edit-description" data-issue-id="${esc(i.issue_id)}" maxlength="20000">${esc(i.description)}</textarea></label><button type="button" class="issue-edit-save" data-issue-id="${esc(i.issue_id)}">บันทึกการแก้ไขปัญหา</button></div>`:''}<b>ไฟล์แนบจากผู้แจ้ง</b>${await mediaFor([i.issue_id],null,issueEditable)}${issueEditable&&receivingDepartments.length?`<div class="no-print issue-reassign" data-issue-id="${esc(i.issue_id)}"><b>แก้ฝ่ายรับเรื่อง (ก่อนมีผู้รับงาน)</b><div class="receiver-checkboxes">${receivingDepartments.map(d=>`<label style="display:inline-flex;gap:6px;margin:6px 14px 6px 0"><input type="checkbox" value="${esc(d.code)}" ${detail.assignments.some(a2=>a2.department_code===d.code&&(a2.issues||[]).some(x=>x.issue_id===i.issue_id))?'checked':''}>${esc(d.code)}</label>`).join('')}</div><button type="button" class="issue-reassign-save" data-issue-id="${esc(i.issue_id)}">บันทึกเปลี่ยนแผนก</button></div>`:''}${issueEditable?`<div class="no-print"><label>เพิ่มไฟล์ของปัญหา ${esc(i.issue_number)}<input class="issueFiles" data-issue-number="${esc(i.issue_number)}" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" multiple></label></div>`:''}</article>`);
+   const pendingHere=(detail.is_requester||QA.profile?.role==='system_admin')&&a.unrelated_requested_at&&['OPEN','IN_PROGRESS','CANCELLED'].includes(a.status);
+   const decision=pendingHere?`<div class="no-print unrelated-decision" data-issue-id="${esc(i.issue_id)}" data-assignment-id="${esc(a.assignment_id)}" data-version="${esc(a.version)}"><h4>↩ แผนกรับเรื่องแจ้งว่าไม่เกี่ยวข้อง</h4><p class="unrelated-explanation">แผนก ${esc(a.department_code)} แจ้งเหตุผล: ${esc(a.unrelated_reason||'-')}</p><p>เลือกดำเนินการอย่างใดอย่างหนึ่ง (เลข CAR และเลขปัญหาเดิมไม่เปลี่ยน)</p><div class="unrelated-decision-buttons"><button type="button" class="unrelated-change-toggle">แก้ไขฝ่ายรับงาน</button><button type="button" class="unrelated-keep-original secondary">ยืนยันฝ่ายรับงานเดิม</button></div><div class="unrelated-change-form" hidden><b>เลือกฝ่ายรับงานใหม่</b><div class="receiver-checkboxes">${receivingDepartments.map(d=>`<label style="display:inline-flex;gap:6px;margin:6px 14px 6px 0"><input type="checkbox" value="${esc(d.code)}" ${detail.assignments.some(a2=>a2.department_code===d.code&&(a2.issues||[]).some(x=>x.issue_id===i.issue_id))?'checked':''}>${esc(d.code)}</label>`).join('')}</div><p class="muted">เมื่อบันทึก ระบบจะส่งภาพแจ้งแก้ไขฝ่ายรับงานไปยัง LINE กลุ่มเดิม (${esc(detail.source_type)}) โดยอัตโนมัติ</p><button type="button" class="unrelated-change-save">ยืนยันแก้ฝ่ายรับงานและส่ง LINE</button></div></div>`:'';
+   cards.push(`<article class="issue issue-card id="issue-${esc(i.issue_id)}" data-issue-id="${esc(i.issue_id)}"><h3><span class="issue-code">${esc(issueCodeFor(a,i))}</span> · ปัญหา ${esc(i.issue_number)} <span class="issue-category">${esc(categoryName(i.category_code))}</span></h3><p>${esc(i.description)}</p>${issueEditable?`<div class="no-print issue-edit-controls" hidden><label>แก้ไขรายละเอียดปัญหา<textarea class="issue-edit-description" data-issue-id="${esc(i.issue_id)}" maxlength="20000">${esc(i.description)}</textarea></label><button type="button" class="issue-edit-save" data-issue-id="${esc(i.issue_id)}">บันทึกการแก้ไขปัญหา</button></div>`:''}<b>ไฟล์แนบจากผู้แจ้ง</b>${await mediaFor([i.issue_id],null,issueEditable)}${issueEditable&&receivingDepartments.length?`<div class="no-print issue-reassign" data-issue-id="${esc(i.issue_id)}"><b>แก้ฝ่ายรับเรื่อง (ก่อนมีผู้รับงาน)</b><div class="receiver-checkboxes">${receivingDepartments.map(d=>`<label style="display:inline-flex;gap:6px;margin:6px 14px 6px 0"><input type="checkbox" value="${esc(d.code)}" ${detail.assignments.some(a2=>a2.department_code===d.code&&(a2.issues||[]).some(x=>x.issue_id===i.issue_id))?'checked':''}>${esc(d.code)}</label>`).join('')}</div><button type="button" class="issue-reassign-save" data-issue-id="${esc(i.issue_id)}">บันทึกเปลี่ยนแผนก</button></div>`:''}${decision}${issueEditable?`<div class="no-print"><label>เพิ่มไฟล์ของปัญหา ${esc(i.issue_number)}<input class="issueFiles" data-issue-number="${esc(i.issue_number)}" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" multiple></label></div>`:''}</article>`);
   }
   deptGroup.innerHTML=`<h3 class="issue-dept-title">แผนก ${esc(a.department_code||'-')}</h3>${cards.join('')||'<p class="muted">ไม่มีรายการปัญหาสำหรับแผนกนี้</p>'}`;
   issueHost.append(deptGroup);
@@ -138,6 +142,32 @@ async function render(){if(!jobId){setNote('ไม่พบหมายเลข
   }
    catch(e){setNote('เปลี่ยนแผนกไม่สำเร็จ: '+e.message,true);button.disabled=false;}
  });
+ // Unrelated return: exactly two explicit requester decisions for the affected issue.
+ for(const root of issueSheet.querySelectorAll('.unrelated-decision')){
+  const change=root.querySelector('.unrelated-change-form');
+  root.querySelector('.unrelated-change-toggle').addEventListener('click',()=>{change.hidden=!change.hidden;if(!change.hidden)change.scrollIntoView({behavior:'smooth',block:'nearest'});});
+  root.querySelector('.unrelated-keep-original').addEventListener('click',async()=>{
+   if(!confirm('ยืนยันใช้ฝ่ายรับงานเดิมและส่งกลับให้แผนกเดิมดำเนินการ?'))return;
+   const buttons=[...root.querySelectorAll('button')];buttons.forEach(b=>b.disabled=true);
+   try{setNote('กำลังยืนยันฝ่ายรับงานเดิม...');const result=await rpc('qa_v51_confirm_unrelated_original',{p_issue_id:root.dataset.issueId,p_assignment_id:root.dataset.assignmentId,p_expected_version:Number(root.dataset.version)});
+    const event=result?.event_id?{event_id:result.event_id,issue_id:root.dataset.issueId,issue_number:result.issue_number,old_departments:result.old_departments,new_departments:result.new_departments,confirm_original:true}:null;
+    if(event)sessionStorage.setItem('qa-v49-pending-line:'+jobId,JSON.stringify(event));
+    await render();if(event)await notifyReceiverChange(event);else setNote('ยืนยันฝ่ายรับงานเดิมเรียบร้อย');
+   }catch(e){setNote('ยืนยันฝ่ายรับงานเดิมไม่สำเร็จ: '+e.message,true);buttons.forEach(b=>b.disabled=false);}
+  });
+  root.querySelector('.unrelated-change-save').addEventListener('click',async()=>{
+   const codes=[...root.querySelectorAll('.receiver-checkboxes input:checked')].map(x=>x.value);
+   if(!codes.length){setNote('กรุณาเลือกฝ่ายรับเรื่องอย่างน้อยหนึ่งแผนก',true);return;}
+   if(codes.includes(String(detail.assignments.find(a=>a.assignment_id===root.dataset.assignmentId)?.department_code||''))){setNote('ถ้าจะใช้แผนกเดิม ให้กด “ยืนยันฝ่ายรับงานเดิม” หรือเอาแผนกที่แจ้งว่าไม่เกี่ยวข้องออกก่อน',true);return;}
+   if(!confirm('ยืนยันเปลี่ยนฝ่ายรับงาน? ระบบจะส่งภาพแจ้งแก้ไขเข้า LINE กลุ่ม '+String(detail.source_type||'')))return;
+   const buttons=[...root.querySelectorAll('button')];buttons.forEach(b=>b.disabled=true);
+   try{setNote('กำลังเปลี่ยนฝ่ายรับงาน...');const result=await rpc('qa_v51_resolve_unrelated_change',{p_issue_id:root.dataset.issueId,p_assignment_id:root.dataset.assignmentId,p_expected_version:Number(root.dataset.version),p_departments:codes});
+    if(!result?.event_id)throw new Error('ไม่มีเหตุการณ์ LINE หลังแก้แผนก');
+    const event={event_id:result.event_id,issue_id:root.dataset.issueId,issue_number:result.issue_number,old_departments:result.old_departments,new_departments:result.new_departments};
+    sessionStorage.setItem('qa-v49-pending-line:'+jobId,JSON.stringify(event));await render();await notifyReceiverChange(event);
+   }catch(e){setNote('แก้ฝ่ายรับงานไม่สำเร็จ: '+e.message+(String(e.message).includes('ADMIN_ROLLBACK_REQUIRED')?' — ต้องให้ System Admin ย้อนสถานะการรับงานก่อน':'') ,true);buttons.forEach(b=>b.disabled=false);}
+  });
+ }
  // Response and approval areas stay as individual department panels below section 2.
  for(const a of detail.assignments){
  const mine=QA.profile?.department===a.department_code||QA.profile?.role==='system_admin';
@@ -186,8 +216,8 @@ async function render(){if(!jobId){setNote('ไม่พบหมายเลข
  // an arbitrary departmental recipient through this button.
  const mayMarkUnrelated=['user','department_admin'].includes(QA.profile?.role)&&
    String(QA.profile?.department||'').toLowerCase()===String(a.department_code||'').toLowerCase();
- if(mayMarkUnrelated&&!a.unrelated_requested_at&&['OPEN','IN_PROGRESS'].includes(a.status)&&!a.approval_requested_at)btn('ไม่เกี่ยวข้อง','UNRELATED_REQUEST','secondary');
- if(isRequester&&a.unrelated_requested_at){btn('ยืนยันลบแผนก','UNRELATED_CONFIRM','danger');btn('คงแผนกนี้ไว้','UNRELATED_REJECT','secondary');}
+ if(mayMarkUnrelated&&!a.unrelated_requested_at&&['OPEN','IN_PROGRESS','CANCELLED'].includes(a.status)&&!a.approval_requested_at)btn('ไม่เกี่ยวข้อง','UNRELATED_REQUEST','secondary');
+ // Requester decisions for unrelated work are now inside section 2, beside the affected issue.
  if(isFinalReviewer&&a.status==='WAITING_REVIEW'){btn('ผ่าน','REQUESTER_PASS');btn('ไม่ผ่าน','REQUESTER_FAIL','danger');}
  // V49: system admin rollback is per assignment; SQL enforces transition/version/reason.
  if(QA.profile?.role==='system_admin'){const back=({IN_PROGRESS:'OPEN',WAITING_REVIEW:'IN_PROGRESS',REWORK:'WAITING_REVIEW',CLOSED:'WAITING_REVIEW',CANCELLED:'OPEN'})[a.status];if(back){const b=document.createElement('button');b.type='button';b.className='danger';b.textContent='ย้อนสถานะ → '+label(back);b.onclick=()=>adminRollback(a,back);actions.append(b);}}
