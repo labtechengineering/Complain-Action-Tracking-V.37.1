@@ -137,7 +137,12 @@ function renderRows(){
   const requesterBadge=pendingRequesterReview?'<span class="head-approval-flag" title="งานที่แผนกคุณแจ้งออกไปรอตรวจรับ">⌛ รอคุณตรวจสอบ</span>':'';
   const sentBack=e.assignments.some(a=>norm(a.department)===norm(profile.department)&&a.rawStatus==='IN_PROGRESS'&&Boolean(a.needsRework));
   const reworkBadge=sentBack?'<span class="head-approval-flag" title="ผู้ตรวจรับส่งงานกลับมาแก้ไข">↩ ส่งกลับแก้ไข</span>':'';
-  return `<a class="job-row" href="${safe(url)}" title="เปิดปัญหา ${safe(issueCode)}"><span title="${safe(issueCode)}"><b>${safe(issueCode)}</b></span><span title="${safe(j.customerName)}">${safe(j.customerName||'ไม่ระบุ')}</span><span title="${safe(j.serialNo)}">${safe(j.serialNo||'—')}</span><span class="route" title="${safe(route)}">${safe(route)}</span><span title="${safe(problem)}">${safe(problem)}</span><span><i class="pill ${safe(st)}">${safe(status)}</i>${headBadge}${requesterBadge}${reworkBadge}</span><span title="${safe(timeText(j))}">${safe(timeText(j))}</span></a>`;
+  // Only the issuing department sees an unrelated return; never show it as completed work.
+  const isOrigin=norm(j.fromDepartment)===norm(profile.department);
+  const unrelatedPending=isOrigin&&e.assignments.some(a=>Boolean(a.unrelatedRequestedAt)&&a.rawStatus!=='CANCELLED');
+  const unrelatedConfirmed=isOrigin&&e.assignments.some(a=>a.rawStatus==='CANCELLED'&&Boolean(a.unrelatedDecidedAt));
+  const unrelatedBadge=unrelatedPending?'<span class="head-approval-flag" title="แผนกผู้รับเรื่องแจ้งว่าไม่เกี่ยวข้อง รอฝ่ายผู้แจ้งพิจารณา">↩ งานไม่เกี่ยวข้อง</span>':unrelatedConfirmed?'<span class="head-approval-flag" title="ฝ่ายผู้แจ้งยืนยันว่าปัญหาไม่เกี่ยวข้องกับแผนกนี้แล้ว">↩ งานไม่เกี่ยวข้อง (ยืนยันแล้ว)</span>':'';
+  return `<a class="job-row" href="${safe(url)}" title="เปิดปัญหา ${safe(issueCode)}"><span title="${safe(issueCode)}"><b>${safe(issueCode)}</b></span><span title="${safe(j.customerName)}">${safe(j.customerName||'ไม่ระบุ')}</span><span title="${safe(j.serialNo)}">${safe(j.serialNo||'—')}</span><span class="route" title="${safe(route)}">${safe(route)}</span><span title="${safe(problem)}">${safe(problem)}</span><span><i class="pill ${safe(st)}">${safe(status)}</i>${headBadge}${requesterBadge}${reworkBadge}${unrelatedBadge}</span><span title="${safe(timeText(j))}">${safe(timeText(j))}</span></a>`;
  }).join(''):'<div class="empty">ไม่พบรายการปัญหา</div>';
  $('viewAll').textContent=expanded?'แสดง 6 ปัญหาล่าสุด':'ดูทั้งหมด ('+filtered.length+')';$('pagination').hidden=!expanded||filtered.length<=pageSize;$('prevPage').disabled=page===0;$('nextPage').disabled=page>=pageCount-1;$('pageInfo').textContent=`หน้า ${page+1} / ${pageCount}`;
  document.querySelectorAll('.stat').forEach(el=>el.classList.toggle('active',el.dataset.status===selected));
@@ -156,7 +161,7 @@ async function loadAssignments(jobs){
    // Stable issue code is built from qa_issue_items.issue_number in qa_vnext_job_detail.
    // Dashboard does not require a second optional RPC merely to render a list.
    j.issueCodes=new Map();
-   j.departmentAssignments=data.assignments.map(a=>({department:String(a.department_code||'').trim(),assignmentId:String(a.assignment_id||''),rawStatus:String(a.status||'').toUpperCase(),approvalRequestedAt:a.approval_requested_at||null,needsRework:Boolean(a.needs_rework),chartStatus:groupStatus(a.status),issues:Array.isArray(a.issues)?a.issues:[]}));
+   j.departmentAssignments=data.assignments.map(a=>({department:String(a.department_code||'').trim(),assignmentId:String(a.assignment_id||''),rawStatus:String(a.status||'').toUpperCase(),approvalRequestedAt:a.approval_requested_at||null,unrelatedRequestedAt:a.unrelated_requested_at||null,unrelatedDecidedAt:a.unrelated_decided_at||null,needsRework:Boolean(a.needs_rework),chartStatus:groupStatus(a.status),issues:Array.isArray(a.issues)?a.issues:[]}));
   }
  });await Promise.all(workers);
 }
@@ -196,7 +201,7 @@ async function load(){
      createdDateTime:String(r.created_at||''),issueCodes:new Map(),
      departmentAssignments:(r.assignments||[]).filter(a=>!localRole||norm(r.from_department)===department||norm(a.department_code)===department)
        .map(a=>({department:String(a.department_code||''),assignmentId:String(a.assignment_id||''),
-          rawStatus:String(a.status||'').toUpperCase(),approvalRequestedAt:a.approval_requested_at||null,needsRework:Boolean(a.needs_rework),
+          rawStatus:String(a.status||'').toUpperCase(),approvalRequestedAt:a.approval_requested_at||null,unrelatedRequestedAt:a.unrelated_requested_at||null,unrelatedDecidedAt:a.unrelated_decided_at||null,needsRework:Boolean(a.needs_rework),
           chartStatus:groupStatus(a.status),issues:Array.isArray(a.issues)?a.issues:[]}))
    })).filter(j=>j.departmentAssignments.length>0).sort((a,b)=>dt(b)-dt(a));
    page=0;render();
