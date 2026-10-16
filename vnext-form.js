@@ -15,7 +15,10 @@
  .vn-checks{display:flex;flex-wrap:wrap;gap:9px}.vn-checks label{border:1px solid #dae1ea;display:flex;align-items:center;gap:7px;padding:8px 10px;border-radius:8px;font-weight:400}
  .vn-checks input{width:auto}.vn-card textarea{min-height:82px}.vn-btn{border:1px solid #bdcad6;border-radius:8px;padding:10px 13px;cursor:pointer;background:#f1f5f9}
  .vn-files{font-size:12px;color:#526276}.vn-note{font-size:13px;color:#5b6675}
- .vn-source-buttons{display:grid;grid-template-columns:repeat(2,minmax(160px,1fr));gap:10px;margin:0}
+ .vn-source-choice{background:#f8fafc;border:2px solid #f59e0b;border-radius:10px;padding:10px 12px;margin:10px 0 14px}
+ .vn-source-choice h3{font-family:Arial,sans-serif;font-size:16px;font-weight:600;margin:0 0 8px;color:#14274c}
+ .vn-source-choice.chosen{border-color:#9db0c8;background:#f8fafc}
+  .vn-source-buttons{display:grid;grid-template-columns:repeat(2,minmax(160px,1fr));gap:10px;margin:0}
  .vn-source-buttons button{background:white;color:#183153;border:2px solid #c0cedf;border-radius:8px;padding:9px 10px;min-height:46px;font-family:Arial,sans-serif;font-size:16px;font-weight:600;line-height:1.35;cursor:pointer;transition:background .15s,border-color .15s,box-shadow .15s}
  .vn-source-buttons button.active{background:#14274c;color:#fff;border-color:#14274c;box-shadow:0 0 0 3px #b8d1f3}
  .vn-source-buttons button:focus-visible{outline:3px solid #f59e0b;outline-offset:3px}
@@ -54,19 +57,20 @@
  const top=$('serialNo')?.closest('.card');const vnHeader=$('vnHeader');if(top&&vnHeader)top.append(vnHeader);
  const remark=$('vnRemark')?.closest('label');if(top&&remark)top.append(remark);
  const source=$('vnSource');source.value='';source.selectedIndex=0;source.parentElement.style.display='none';
+ const chooser=document.createElement('div');chooser.className='vn-source-choice';chooser.innerHTML='<h3>เลือกประเภทงาน *</h3>';
  const buttons=document.createElement('div');buttons.className='vn-source-buttons';
  [['PRODUCTION','Production'],['AFTERSALES','Aftersales']].forEach(([key,name])=>{
   const b=document.createElement('button');b.type='button';b.textContent=name;b.dataset.value=key;
-  b.onclick=()=>{source.value=key;[...buttons.children].forEach(x=>{x.classList.toggle('active',x.dataset.value===key);x.setAttribute('aria-pressed',String(x.dataset.value===key))})};
+  b.onclick=()=>{source.value=key;chooser.classList.add('chosen');[...buttons.children].forEach(x=>{x.classList.toggle('active',x.dataset.value===key);x.setAttribute('aria-pressed',String(x.dataset.value===key))})};
   buttons.append(b);
- });top?.insertBefore(buttons,top.querySelector('.grid'));[...buttons.children].forEach(b=>{b.classList.remove('active');b.setAttribute('aria-pressed','false');});
+ });chooser.append(buttons);top?.insertBefore(chooser,top.querySelector('.grid'));[...buttons.children].forEach(b=>{b.classList.remove('active');b.setAttribute('aria-pressed','false');});
  $('toDepartment').closest('.field').style.display='none';$('toDepartment').required=false;
  $('category').required=false;$('problemDetail').required=false;
  const oldImages=$('imageInput').closest('.card');oldImages.style.display='none';
  const baseSubmit=$('submitBtn');baseSubmit.textContent='แจ้งงาน';
  // Reset browser-restored source selection for a NEW job only (edit mode exits above).
  source.value='';source.selectedIndex=0;
- window.addEventListener('pageshow',()=>{source.value='';source.selectedIndex=0;[...buttons.children].forEach(b=>{b.classList.remove('active');b.setAttribute('aria-pressed','false');});});
+ window.addEventListener('pageshow',()=>{source.value='';source.selectedIndex=0;chooser.classList.remove('chosen');[...buttons.children].forEach(b=>{b.classList.remove('active');b.setAttribute('aria-pressed','false');});});
  function save(){for(const el of $('vnProblems').querySelectorAll('[data-issue]')){const i=problems.find(p=>p.id===+el.dataset.issue);if(!i)continue;i.category=el.querySelector('.vn-category').value;i.description=el.querySelector('.vn-detail').value;i.departments=[...el.querySelectorAll('.vn-dept:checked')].map(c=>c.value);}}
  function render(){const host=$('vnProblems');host.replaceChildren();problems.forEach((p,i)=>{
   const box=document.createElement('article');box.className='vn-card';box.dataset.issue=p.id;
