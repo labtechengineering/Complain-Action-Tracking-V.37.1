@@ -141,7 +141,9 @@ async function render(){if(!jobId){setNote('ไม่พบหมายเลข
  const isFinalReviewer=QA.profile?.role==='department_admin'&&String(QA.profile?.department||'').toLowerCase()===String(detail.from_department||'').toLowerCase();
  const el=document.createElement('section');el.className='sheet department-panel';
  el.dataset.assignment=a.assignment_id;el.dataset.departmentCode=a.department_code;
- const responseEditable=mine&&a.status==='IN_PROGRESS'&&!a.approval_requested_at;
+ const isResponsible=String(a.responsible_user||'')===String(QA.profile?.user_id||'');
+ const responseEditable=mine&&isResponsible&&a.status==='IN_PROGRESS'&&!a.approval_requested_at;
+ const pendingHeadReview=a.status==='IN_PROGRESS'&&Boolean(a.approval_requested_at);
  const showResponse=a.status!=='OPEN'||Boolean(a.responsible_user||a.accepted_at);
  // A requester should not see an empty Section 3 before the receiving department accepts.
  // Keep it available for the receiving department (including its acceptance controls).
@@ -157,12 +159,12 @@ async function render(){if(!jobId){setNote('ไม่พบหมายเลข
  ${a.unrelated_requested_at?`<p class="action-note">แจ้งไม่เกี่ยวข้อง: ${esc(a.unrelated_reason||'')} · รอผู้แจ้งยืนยัน</p>`:''}
  ${responseEditable?`<div class="no-print"><label>แนบรูป/วิดีโอ (สูงสุด 5 รูป และ 1 วิดีโอ)<input class="responseFiles" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" multiple></label></div>`:''}
  <div class="no-print actions"></div>
- <h3>การตรวจสอบและอนุมัติ</h3><p>${a.approved_at?'อนุมัติเมื่อ '+esc(new Date(a.approved_at).toLocaleString('th-TH')):esc(label(a.status))}</p>` : ''}${!showResponse?'<div class="no-print actions"></div>':''}`;
+ <h3>การตรวจสอบและอนุมัติ</h3><p>${pendingHeadReview?'<strong class="head-review-alert">⏳ รอหัวหน้าแผนกรับเรื่องอนุมัติ</strong>':a.approved_at?'อนุมัติเมื่อ '+esc(new Date(a.approved_at).toLocaleString('th-TH')):esc(label(a.status))}</p>` : ''}${!showResponse?'<div class="no-print actions"></div>':''}`;
  const actions=el.querySelector('.actions');
  function btn(text,action,color='secondary'){const b=document.createElement('button');b.textContent=text;b.className=color;b.onclick=()=>act(a,action,el);actions.append(b);}
  if(mine&&a.status==='OPEN'&&!a.unrelated_requested_at){if(QA.profile?.role==='system_admin'){const note=document.createElement('label');note.className='admin-accept-comment';note.textContent='หมายเหตุรับงานแทนแผนก';const area=document.createElement('textarea');area.className='admin-accept-input';area.placeholder='ข้อความถึงแผนกผู้รับเรื่อง';area.maxLength=2000;note.append(area);actions.append(note);}btn('รับงาน','ACCEPT');}
- if(responseEditable){btn('บันทึก','SAVE_DRAFT');btn('ส่งให้หัวหน้าตรวจสอบ','REQUEST_APPROVAL');}
- if(head&&a.status==='IN_PROGRESS'&&a.approval_requested_at){btn('อนุมัติ','APPROVE');btn('ไม่อนุมัติ','RETURN','danger');}
+ if(responseEditable){btn('บันทึก','SAVE_DRAFT');if(QA.profile?.role==='department_admin')btn('ส่งงาน','HEAD_SEND');else btn('ส่งให้หัวหน้าตรวจสอบ','REQUEST_APPROVAL');}
+ if(head&&pendingHeadReview){btn('อนุมัติและส่งงาน','APPROVE');btn('ส่งกลับให้แก้ไข','RETURN','danger');}
  // Only receivers from their own department may request "not related".
  // A system admin must use separately authorized admin controls, not act as
  // an arbitrary departmental recipient through this button.
@@ -184,7 +186,7 @@ async function render(){if(!jobId){setNote('ไม่พบหมายเลข
  }catch(e){setNote('อ่านใบงานไม่สำเร็จ: '+e.message,true);$('details').textContent='โปรดตรวจสิทธิ์ หรือกลับไปเปิดใบงานเดิม';}}
 async function renderHistory(){
  const box=$('historyRows');box.replaceChildren();try{const events=await rpc('qa_v38_job_history',{p_job_id:jobId});
- const names={ACCEPT:'รับงาน',SAVE_DRAFT:'บันทึกการดำเนินการ',REQUEST_APPROVAL:'ส่งให้หัวหน้าอนุมัติ',APPROVE:'หัวหน้าอนุมัติ',RETURN:'หัวหน้าไม่อนุมัติ',REQUESTER_PASS:'ผู้แจ้งตรวจรับผ่าน',REQUESTER_FAIL:'ผู้แจ้งไม่ผ่านการตรวจรับ',ADMIN_ROLLBACK:'System Admin ย้อนสถานะ',UNRELATED_REQUEST:'แจ้งไม่เกี่ยวข้อง',UNRELATED_CONFIRM:'ผู้แจ้งยืนยันถอดแผนก',UNRELATED_REJECT:'ผู้แจ้งคงแผนกไว้'};
+ const names={ACCEPT:'รับงาน',SAVE_DRAFT:'บันทึกการดำเนินการ',REQUEST_APPROVAL:'ส่งให้หัวหน้าอนุมัติ',HEAD_SEND:'หัวหน้าแผนกส่งงานโดยตรง',APPROVE:'หัวหน้าอนุมัติ',RETURN:'หัวหน้าไม่อนุมัติ',REQUESTER_PASS:'ผู้แจ้งตรวจรับผ่าน',REQUESTER_FAIL:'ผู้แจ้งไม่ผ่านการตรวจรับ',ADMIN_ROLLBACK:'System Admin ย้อนสถานะ',UNRELATED_REQUEST:'แจ้งไม่เกี่ยวข้อง',UNRELATED_CONFIRM:'ผู้แจ้งยืนยันถอดแผนก',UNRELATED_REJECT:'ผู้แจ้งคงแผนกไว้'};
  for(const e of events||[]){const div=document.createElement('div');div.className='history-row';div.textContent=new Date(e.created_at).toLocaleString('th-TH',{timeZone:'Asia/Bangkok'})+' · '+(e.department_code||'')+' · '+(names[e.action]||e.action);box.append(div)}
  if(!events?.length)box.textContent='ยังไม่มีประวัติการดำเนินงาน';
  }catch(e){box.textContent='ไม่สามารถโหลดประวัติ: '+e.message}
@@ -203,17 +205,17 @@ function renderTracker(d){
 async function act(a,action,el){
  if(action==='UNRELATED_REQUEST'&&!( ['user','department_admin'].includes(QA.profile?.role)&&String(QA.profile?.department||'').toLowerCase()===String(a.department_code||'').toLowerCase())){setNote('ไม่มีสิทธิ์กดไม่เกี่ยวข้องสำหรับแผนกนี้',true);return;}
  if(['REQUESTER_PASS','REQUESTER_FAIL'].includes(action)&&!(QA.profile?.role==='department_admin'&&String(QA.profile?.department||'').toLowerCase()===String(detail?.from_department||'').toLowerCase())){setNote('สิทธิ์ตรวจรับเป็นของหัวหน้าแผนกผู้แจ้งเท่านั้น',true);return;}
- let data={};if(action==='SAVE_DRAFT'||action==='REQUEST_APPROVAL'){data={receiver_problem_detail:el.querySelector('.recv').value,problem_analysis:el.querySelector('.analysis').value,corrective_action:el.querySelector('.fix').value,due_date:el.querySelector('.due').value};}
- if(action==='REQUEST_APPROVAL'&&el.querySelector('.responseFiles')?.files?.length){setNote('กรุณากดบันทึกร่างเพื่ออัปโหลดไฟล์แนบก่อน แล้วจึงส่งให้หัวหน้าตรวจสอบ',true);return;}
+ let data={};if(['SAVE_DRAFT','REQUEST_APPROVAL','HEAD_SEND'].includes(action)){data={receiver_problem_detail:el.querySelector('.recv').value,problem_analysis:el.querySelector('.analysis').value,corrective_action:el.querySelector('.fix').value,due_date:el.querySelector('.due').value};}
+ if(['REQUEST_APPROVAL','HEAD_SEND'].includes(action)&&el.querySelector('.responseFiles')?.files?.length){setNote('กรุณากดบันทึกร่างเพื่ออัปโหลดไฟล์แนบก่อน แล้วจึงส่งให้หัวหน้าตรวจสอบ',true);return;}
  if(['RETURN','REQUESTER_FAIL','UNRELATED_REQUEST'].includes(action)){const reason=prompt(action==='RETURN'?'ระบุเหตุผลที่ไม่อนุมัติ':action==='REQUESTER_FAIL'?'ระบุเหตุผลที่ไม่ผ่าน':'ระบุเหตุผลที่ไม่เกี่ยวข้อง');if(!reason?.trim())return;data={reason:reason.trim()};}
  if(action==='ACCEPT'&&QA.profile.role==='system_admin'){data={comment:el.querySelector('.admin-accept-input')?.value.trim()||''};}
  if(['APPROVE','REQUESTER_PASS','UNRELATED_CONFIRM'].includes(action)&&!confirm('ยืนยันการดำเนินการ?'))return;
  try{setNote('กำลังบันทึก...');let expected=a.version;
- if(action==='REQUEST_APPROVAL'){
+ if(['REQUEST_APPROVAL','HEAD_SEND'].includes(action)){
    // Save any visible edits before requesting review; never silently discard input.
    const saved=await rpc('qa_vnext_assignment_action',{p_assignment_id:a.assignment_id,p_action:'SAVE_DRAFT',p_expected_version:expected,p_data:data});expected=saved.version;
  }
- const {data:result,error}=await QA.client.rpc('qa_vnext_assignment_action',{p_assignment_id:a.assignment_id,p_action:action,p_expected_version:expected,p_data:action==='REQUEST_APPROVAL'?{}:data});if(error)throw error;
+ const {data:result,error}=await QA.client.rpc('qa_vnext_assignment_action',{p_assignment_id:a.assignment_id,p_action:action,p_expected_version:expected,p_data:['REQUEST_APPROVAL','HEAD_SEND'].includes(action)?{}:data});if(error)throw error;
  if(action==='SAVE_DRAFT'){const files=[...el.querySelector('.responseFiles')?.files||[]];if(files.length)await uploadResponse(a.assignment_id,files);}
  setNote('บันทึกสำเร็จ');await render();}catch(e){setNote('ไม่สามารถบันทึกได้: '+e.message,true);}}
 async function adminRollback(a,target){

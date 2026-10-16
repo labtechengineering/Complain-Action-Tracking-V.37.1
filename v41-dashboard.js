@@ -118,7 +118,10 @@ function renderRows(){
   const route=`${j.fromDepartment||'—'} → ${e.departments.join(', ')||'—'}`;
   const problem=`ปัญหา ${i.issue_number??'—'}: ${i.description||j.problemDetail||'—'}`;
   const issueCode=displayIssueCode(j,e.assignments[0],i);
-  return `<a class="job-row" href="${safe(url)}" title="เปิดปัญหา ${safe(issueCode)}"><span><b>${safe(issueCode)}</b></span><span title="${safe(j.customerName)}">${safe(j.customerName||'ไม่ระบุ')}</span><span title="${safe(j.serialNo)}">${safe(j.serialNo||'—')}</span><span class="route" title="${safe(route)}">${safe(route)}</span><span title="${safe(problem)}">${safe(problem)}</span><span><i class="pill ${safe(st)}">${safe(status)}</i></span><span>${safe(timeText(j))}</span></a>`;
+  const profile=window.QA?.profile||{};
+  const pendingOwnDepartment=String(profile.role||'').toLowerCase()==='department_admin'&&e.assignments.some(a=>norm(a.department)===norm(profile.department)&&a.rawStatus==='IN_PROGRESS'&&Boolean(a.approvalRequestedAt));
+  const headBadge=pendingOwnDepartment?'<span class="head-approval-flag" title="งานของแผนกคุณรอหัวหน้าอนุมัติ">⏳ รอคุณอนุมัติ</span>':'';
+  return `<a class="job-row" href="${safe(url)}" title="เปิดปัญหา ${safe(issueCode)}"><span><b>${safe(issueCode)}</b>${headBadge}</span><span title="${safe(j.customerName)}">${safe(j.customerName||'ไม่ระบุ')}</span><span title="${safe(j.serialNo)}">${safe(j.serialNo||'—')}</span><span class="route" title="${safe(route)}">${safe(route)}</span><span title="${safe(problem)}">${safe(problem)}</span><span><i class="pill ${safe(st)}">${safe(status)}</i></span><span>${safe(timeText(j))}</span></a>`;
  }).join(''):'<div class="empty">ไม่พบรายการปัญหา</div>';
  $('viewAll').textContent=expanded?'แสดง 6 ปัญหาล่าสุด':'ดูทั้งหมด ('+filtered.length+')';$('pagination').hidden=!expanded||filtered.length<=pageSize;$('prevPage').disabled=page===0;$('nextPage').disabled=page>=pageCount-1;$('pageInfo').textContent=`หน้า ${page+1} / ${pageCount}`;
  document.querySelectorAll('.stat').forEach(el=>el.classList.toggle('active',el.dataset.status===selected));
@@ -137,7 +140,7 @@ async function loadAssignments(jobs){
    // Stable issue code is built from qa_issue_items.issue_number in qa_vnext_job_detail.
    // Dashboard does not require a second optional RPC merely to render a list.
    j.issueCodes=new Map();
-   j.departmentAssignments=data.assignments.map(a=>({department:String(a.department_code||'').trim(),assignmentId:String(a.assignment_id||''),rawStatus:String(a.status||'').toUpperCase(),chartStatus:groupStatus(a.status),issues:Array.isArray(a.issues)?a.issues:[]}));
+   j.departmentAssignments=data.assignments.map(a=>({department:String(a.department_code||'').trim(),assignmentId:String(a.assignment_id||''),rawStatus:String(a.status||'').toUpperCase(),approvalRequestedAt:a.approval_requested_at||null,chartStatus:groupStatus(a.status),issues:Array.isArray(a.issues)?a.issues:[]}));
   }
  });await Promise.all(workers);
 }
