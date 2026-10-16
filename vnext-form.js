@@ -49,17 +49,20 @@
  }
  const top=$('serialNo')?.closest('.card');const vnHeader=$('vnHeader');if(top&&vnHeader)top.append(vnHeader);
  const remark=$('vnRemark')?.closest('label');if(top&&remark)top.append(remark);
- const source=$('vnSource');source.parentElement.style.display='none';
+ const source=$('vnSource');source.value='';source.selectedIndex=0;source.parentElement.style.display='none';
  const buttons=document.createElement('div');buttons.className='vn-source-buttons';
  [['PRODUCTION','Production'],['AFTERSALES','Aftersales']].forEach(([key,name])=>{
   const b=document.createElement('button');b.type='button';b.textContent=name;b.dataset.value=key;
   b.onclick=()=>{source.value=key;[...buttons.children].forEach(x=>{x.classList.toggle('active',x.dataset.value===key);x.setAttribute('aria-pressed',String(x.dataset.value===key))})};
   buttons.append(b);
- });top?.insertBefore(buttons,top.querySelector('.grid'));[...buttons.children].forEach(b=>b.setAttribute('aria-pressed','false'));
+ });top?.insertBefore(buttons,top.querySelector('.grid'));[...buttons.children].forEach(b=>{b.classList.remove('active');b.setAttribute('aria-pressed','false');});
  $('toDepartment').closest('.field').style.display='none';$('toDepartment').required=false;
  $('category').required=false;$('problemDetail').required=false;
  const oldImages=$('imageInput').closest('.card');oldImages.style.display='none';
  const baseSubmit=$('submitBtn');baseSubmit.textContent='แจ้งงาน';
+ // Reset browser-restored source selection for a NEW job only (edit mode exits above).
+ source.value='';source.selectedIndex=0;
+ window.addEventListener('pageshow',()=>{source.value='';source.selectedIndex=0;[...buttons.children].forEach(b=>{b.classList.remove('active');b.setAttribute('aria-pressed','false');});});
  function save(){for(const el of $('vnProblems').querySelectorAll('[data-issue]')){const i=problems.find(p=>p.id===+el.dataset.issue);if(!i)continue;i.category=el.querySelector('.vn-category').value;i.description=el.querySelector('.vn-detail').value;i.departments=[...el.querySelectorAll('.vn-dept:checked')].map(c=>c.value);}}
  function render(){const host=$('vnProblems');host.replaceChildren();problems.forEach((p,i)=>{
   const box=document.createElement('article');box.className='vn-card';box.dataset.issue=p.id;
