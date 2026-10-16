@@ -14,9 +14,8 @@ function compareLatestIssueRows(a,b){
  const x=jobCarOrder(a.job),y=jobCarOrder(b.job);
  if(x&&y){if(x.year!==y.year)return y.year-x.year;if(x.seq!==y.seq)return y.seq-x.seq;}
  else if(x||y){return x?-1:1;}
- const timeDiff=dt(b.job)-dt(a.job);if(timeDiff)return timeDiff;
  const issueDiff=Number(b.issue.issue_number||0)-Number(a.issue.issue_number||0);
- return issueDiff||String(b.issue.issue_id||'').localeCompare(String(a.issue.issue_id||''));
+ if(issueDiff)return issueDiff;const timeDiff=dt(b.job)-dt(a.job);return timeDiff||String(b.issue.issue_id||'').localeCompare(String(a.issue.issue_id||''));
 }
 
 let all=[],base=[],selected='all',selectedDept='',expanded=false,page=0,receiverCodes=null,receiverError='',assignmentLoadErrors=0,globalAggregate=null,summaryRequest=0;const pageSize=20;
@@ -27,7 +26,7 @@ function periodMatch(j){const type=$('filter').value;if(type==='all')return true
 // OPEN (not yet accepted), IN_PROGRESS, REWORK -> yellow. Only explicit
 // requester acceptance (CLOSED) turns the department green.
 function groupStatus(v){const s=String(v||'').toUpperCase();if(s==='WAITING_REVIEW')return 'WAITING_REVIEW';if(s==='CLOSED')return 'CLOSED';if(['OPEN','IN_PROGRESS','REWORK','ASSIGNED','PENDING'].includes(s))return 'IN_PROGRESS';return null;}
-function enabledAssignments(j){const allowed=new Set(receiverCodes||[]);return (j.departmentAssignments||[]).filter(a=>allowed.has(a.department));}
+function enabledAssignments(j){return j.departmentAssignments||[];} // Include historical assignments even if receiver setting was disabled later.
 // A countable work item is a unique issue in one department assignment.
 // The same issue assigned to two departments represents two separately tracked actions.
 function assignmentIssues(a){const found=new Set();return (a.issues||[]).filter(i=>{const key=String(i.issue_id??i.issue_number??'');if(!key||found.has(key))return false;found.add(key);return true;});}
@@ -128,7 +127,7 @@ function renderRows(){
 }
 
 function updatePeriod(){const v=$('filter').value;for(const k of ['day','week','month','year'])$(k).hidden=k!==v;page=0;render()}
-function init(){const p=window.QA?.profile||{};$('welcome').textContent=`สวัสดี ${p.display_name||p.email||'ผู้ใช้งาน'} · ${p.department||'ระบบติดตามงาน'} — ยินดีต้อนรับ`;const now=new Date();const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);const v=Object.fromEntries(parts.map(x=>[x.type,x.value]));const day=`${v.year}-${v.month}-${v.day}`;$('day').value=day;$('month').value=day.slice(0,7);$('year').value=v.year;$('week').value=weekKey(day);$('filter').addEventListener('change',()=>{updatePeriod();refreshSummary();});document.querySelector('.charts').addEventListener('click',ev=>{const target=ev.target.closest('[data-chart-status],[data-chart-dept]');if(target){toggleChartFilter(target.dataset.chartStatus||'',target.dataset.chartDept||'');return;}const ring=ev.target.closest('#donut');if(!ring||ev.target.closest('.donut-center'))return;const rect=ring.getBoundingClientRect(),cx=rect.left+rect.width/2,cy=rect.top+rect.height/2,dx=ev.clientX-cx,dy=ev.clientY-cy,dist=Math.hypot(dx,dy);if(dist<rect.width*.32||dist>rect.width*.52)return;const angle=(Math.atan2(dx,-dy)*180/Math.PI+360)%360;const part=JSON.parse(ring.dataset.parts||'[]').find(p=>angle>=p.from*3.6&&angle<p.to*3.6);if(part)toggleChartFilter(part.s,'');});['day','week','month','year','dashScope'].forEach(id=>$(id).addEventListener('change',()=>{page=0;render();refreshSummary()}));$('dashSearch').addEventListener('input',()=>{page=0;render()});$('refresh').addEventListener('click',load);document.querySelectorAll('.stat').forEach(el=>el.addEventListener('click',()=>{selected=el.dataset.status;selectedDept='';expanded=false;page=0;renderCharts(recount(base));renderRows()}));$('viewAll').addEventListener('click',()=>{expanded=!expanded;page=0;renderRows()});$('prevPage').addEventListener('click',()=>{page--;renderRows()});$('nextPage').addEventListener('click',()=>{page++;renderRows()});load()}
+function init(){const p=window.QA?.profile||{};if(['user','department_admin'].includes(String(p.role||'').toLowerCase())){const scope=$('dashScope');scope.value='received';for(const opt of scope.options){if(opt.value!=='received')opt.disabled=true;}scope.title='รายการปัญหาของแผนกที่ได้รับงานเท่านั้น';}$('welcome').textContent=`สวัสดี ${p.display_name||p.email||'ผู้ใช้งาน'} · ${p.department||'ระบบติดตามงาน'} — ยินดีต้อนรับ`;const now=new Date();const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);const v=Object.fromEntries(parts.map(x=>[x.type,x.value]));const day=`${v.year}-${v.month}-${v.day}`;$('day').value=day;$('month').value=day.slice(0,7);$('year').value=v.year;$('week').value=weekKey(day);$('filter').addEventListener('change',()=>{updatePeriod();refreshSummary();});document.querySelector('.charts').addEventListener('click',ev=>{const target=ev.target.closest('[data-chart-status],[data-chart-dept]');if(target){toggleChartFilter(target.dataset.chartStatus||'',target.dataset.chartDept||'');return;}const ring=ev.target.closest('#donut');if(!ring||ev.target.closest('.donut-center'))return;const rect=ring.getBoundingClientRect(),cx=rect.left+rect.width/2,cy=rect.top+rect.height/2,dx=ev.clientX-cx,dy=ev.clientY-cy,dist=Math.hypot(dx,dy);if(dist<rect.width*.32||dist>rect.width*.52)return;const angle=(Math.atan2(dx,-dy)*180/Math.PI+360)%360;const part=JSON.parse(ring.dataset.parts||'[]').find(p=>angle>=p.from*3.6&&angle<p.to*3.6);if(part)toggleChartFilter(part.s,'');});['day','week','month','year','dashScope'].forEach(id=>$(id).addEventListener('change',()=>{page=0;render();refreshSummary()}));$('dashSearch').addEventListener('input',()=>{page=0;render()});$('refresh').addEventListener('click',load);document.querySelectorAll('.stat').forEach(el=>el.addEventListener('click',()=>{selected=el.dataset.status;selectedDept='';expanded=false;page=0;renderCharts(recount(base));renderRows()}));$('viewAll').addEventListener('click',()=>{expanded=!expanded;page=0;renderRows()});$('prevPage').addEventListener('click',()=>{page--;renderRows()});$('nextPage').addEventListener('click',()=>{page++;renderRows()});load()}
 // The same permission-checked RPC used by the detail page supplies assignment statuses.
 // Deliberately fail the Dashboard load if any assignment detail fails; never show false zeros.
 async function loadAssignments(jobs){
@@ -152,7 +151,7 @@ function dateRange(){const kind=$('filter').value;
  return {from:null,to:null};}
 async function refreshSummary(){const seq=++summaryRequest;const dates=dateRange();
  try{const {data,error}=await window.QA.client.rpc('qa_dashboard_issue_summary',{
-  p_scope:$('dashScope').value,p_date_from:dates.from,p_date_to:dates.to});
+  p_scope:['user','department_admin'].includes(String(window.QA?.profile?.role||'').toLowerCase())?'all':$('dashScope').value,p_date_from:dates.from,p_date_to:dates.to});
   if(error)throw error;if(!data||!Array.isArray(data.departments))throw new Error('รูปแบบข้อมูลสถิติไม่ถูกต้อง');
   if(seq!==summaryRequest)return;globalAggregate=data;render();
  }catch(e){if(seq!==summaryRequest)return;globalAggregate=null;render();$('feedback').textContent='โหลดสถิติรวมไม่สำเร็จ: '+String(e?.message||e);}}
@@ -164,15 +163,27 @@ async function load(){
    if(!Array.isArray(data))throw new Error('Invalid receiver settings response');
    receiverCodes=[...new Set(data.filter(x=>x.enabled===true).map(x=>String(x.code||'').trim()).filter(Boolean))];receiverError='';
    await refreshSummary();
-   const result=await new Promise((resolve,reject)=>window.QA.run.withSuccessHandler(resolve).withFailureHandler(reject).searchJobs({}));
-   const jobs=result.jobs||[];
-   // Individual job details remain permission-gated. Their failure must not erase global statistics.
-   let failed=0;const allowed=[];let nextIndex=0;
-   await Promise.all(Array.from({length:Math.min(6,jobs.length)},async()=>{
-     while(nextIndex<jobs.length){const j=jobs[nextIndex++];try{await loadAssignments([j]);allowed.push(j)}catch(e){failed++;}}
-   }));
-   all=allowed.sort((a,b)=>dt(b)-dt(a));page=0;render();
-   $('feedback').textContent=`รายการที่มีสิทธิ์เข้าถึง ${all.reduce((n,j)=>n+issueRowsFor(j).length,0)} ปัญหา${failed?' · บางใบงานไม่สามารถอ่านรายละเอียดได้ '+failed+' งาน':''}`;
+   // Read from an authenticated SECURITY DEFINER RPC that enforces receiving-department
+   // access at the database. qa_search is owner-oriented and misses coworker-created jobs.
+   const profile=window.QA?.profile||{};
+   const {data:rows,error:listError}=await window.QA.client.rpc('qa_dashboard_department_issue_list');
+   if(listError)throw new Error('รายการแผนก: '+listError.message);
+   if(!Array.isArray(rows))throw new Error('รูปแบบรายการแผนกไม่ถูกต้อง');
+   const localRole=['user','department_admin'].includes(String(profile.role||'').toLowerCase());
+   const department=norm(profile.department);
+   if(localRole&&!department)throw new Error('บัญชีผู้ใช้ยังไม่ได้กำหนดแผนก');
+   all=rows.map(r=>({
+     jobId:String(r.job_id||''),carCode:String(r.car_code||r.job_id||''),
+     customerName:String(r.customer_name||''),country:String(r.country||''),
+     serialNo:String(r.serial_no||''),fromDepartment:String(r.from_department||''),
+     createdDateTime:String(r.created_at||''),issueCodes:new Map(),
+     departmentAssignments:(r.assignments||[]).filter(a=>!localRole||norm(a.department_code)===department)
+       .map(a=>({department:String(a.department_code||''),assignmentId:String(a.assignment_id||''),
+          rawStatus:String(a.status||'').toUpperCase(),approvalRequestedAt:a.approval_requested_at||null,
+          chartStatus:groupStatus(a.status),issues:Array.isArray(a.issues)?a.issues:[]}))
+   })).filter(j=>j.departmentAssignments.length>0).sort((a,b)=>dt(b)-dt(a));
+   page=0;render();
+   $('feedback').textContent=`รายการที่มีสิทธิ์เข้าถึง ${all.reduce((n,j)=>n+issueRowsFor(j).length,0)} ปัญหา`;
  }catch(e){all=[];base=[];receiverError=String(e?.message||e);render();
    $('feedback').textContent='โหลดรายการที่มีสิทธิ์ดูไม่สำเร็จ: '+receiverError;
  }
