@@ -34,6 +34,12 @@ async function render(){if(!jobId){setNote('ไม่พบหมายเลข
  issueSheet.innerHTML='<h2>2. รายละเอียดปัญหา</h2><div id="allIssueCards"></div>';
  list.append(issueSheet);
  const issueHost=issueSheet.querySelector('#allIssueCards');
+ // Source of truth for issue display codes is one secured RPC, not each user's visible subset.
+ const codeRows=await rpc('qa_issue_display_codes',{p_job_id:jobId});
+ if(!Array.isArray(codeRows))throw new Error('ไม่พบข้อมูลเลขอ้างอิงปัญหา');
+ const issueCodes=new Map(codeRows.map(x=>[String(x.assignment_id)+':'+String(x.issue_id),String(x.display_code)]));
+ // Shared issue number: multiple departments must show exactly the same code.
+ const issueCodeFor=(a,i)=>String(detail.car_code||detail.job_id)+'-'+String(i.issue_number||1).padStart(2,'0');
  const displayedIssues=new Set();
  for(const a of detail.assignments){
   const issueEditable=Boolean(detail.can_manage_issues);
@@ -49,7 +55,7 @@ async function render(){if(!jobId){setNote('ไม่พบหมายเลข
    const uniqueKey=String(a.assignment_id)+':'+String(i.issue_id);
    if(displayedIssues.has(uniqueKey))continue;
    displayedIssues.add(uniqueKey);
-   cards.push(`<article class="issue issue-card" data-issue-id="${esc(i.issue_id)}"><h3>ปัญหา ${esc(i.issue_number)} <span class="issue-category">${esc(categoryName(i.category_code))}</span></h3><p>${esc(i.description)}</p>${issueEditable?`<div class="no-print issue-edit-controls" hidden><label>แก้ไขรายละเอียดปัญหา<textarea class="issue-edit-description" data-issue-id="${esc(i.issue_id)}" maxlength="20000">${esc(i.description)}</textarea></label><button type="button" class="issue-edit-save" data-issue-id="${esc(i.issue_id)}">บันทึกการแก้ไขปัญหา</button></div>`:''}<b>ไฟล์แนบจากผู้แจ้ง</b>${await mediaFor([i.issue_id],null,issueEditable)}${issueEditable?`<div class="no-print"><label>เพิ่มไฟล์ของปัญหา ${esc(i.issue_number)}<input class="issueFiles" data-issue-number="${esc(i.issue_number)}" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" multiple></label></div>`:''}</article>`);
+   cards.push(`<article class="issue issue-card" data-issue-id="${esc(i.issue_id)}"><h3><span class="issue-code">${esc(issueCodeFor(a,i))}</span> · ปัญหา ${esc(i.issue_number)} <span class="issue-category">${esc(categoryName(i.category_code))}</span></h3><p>${esc(i.description)}</p>${issueEditable?`<div class="no-print issue-edit-controls" hidden><label>แก้ไขรายละเอียดปัญหา<textarea class="issue-edit-description" data-issue-id="${esc(i.issue_id)}" maxlength="20000">${esc(i.description)}</textarea></label><button type="button" class="issue-edit-save" data-issue-id="${esc(i.issue_id)}">บันทึกการแก้ไขปัญหา</button></div>`:''}<b>ไฟล์แนบจากผู้แจ้ง</b>${await mediaFor([i.issue_id],null,issueEditable)}${issueEditable?`<div class="no-print"><label>เพิ่มไฟล์ของปัญหา ${esc(i.issue_number)}<input class="issueFiles" data-issue-number="${esc(i.issue_number)}" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" multiple></label></div>`:''}</article>`);
   }
   deptGroup.innerHTML=`<h3 class="issue-dept-title">แผนก ${esc(a.department_code||'-')}</h3>${cards.join('')||'<p class="muted">ไม่มีรายการปัญหาสำหรับแผนกนี้</p>'}`;
   issueHost.append(deptGroup);
@@ -74,6 +80,8 @@ async function render(){if(!jobId){setNote('ไม่พบหมายเลข
  const mine=QA.profile?.department===a.department_code||QA.profile?.role==='system_admin';
  const head=QA.profile?.role==='system_admin'||(mine&&QA.profile?.role==='department_admin');
  const isRequester=detail.is_requester||QA.profile?.role==='system_admin';
+ // Department heads of the reporting department are the only intended final reviewers.
+ const isFinalReviewer=QA.profile?.role==='department_admin'&&String(QA.profile?.department||'').toLowerCase()===String(detail.from_department||'').toLowerCase();
  const el=document.createElement('section');el.className='sheet department-panel';
  el.dataset.assignment=a.assignment_id;el.dataset.departmentCode=a.department_code;
  const responseEditable=mine&&a.status==='IN_PROGRESS'&&!a.approval_requested_at;
@@ -98,9 +106,16 @@ async function render(){if(!jobId){setNote('ไม่พบหมายเลข
  if(mine&&a.status==='OPEN'&&!a.unrelated_requested_at){if(QA.profile?.role==='system_admin'){const note=document.createElement('label');note.className='admin-accept-comment';note.textContent='หมายเหตุรับงานแทนแผนก';const area=document.createElement('textarea');area.className='admin-accept-input';area.placeholder='ข้อความถึงแผนกผู้รับเรื่อง';area.maxLength=2000;note.append(area);actions.append(note);}btn('รับงาน','ACCEPT');}
  if(responseEditable){btn('บันทึก','SAVE_DRAFT');btn('ส่งให้หัวหน้าตรวจสอบ','REQUEST_APPROVAL');}
  if(head&&a.status==='IN_PROGRESS'&&a.approval_requested_at){btn('อนุมัติ','APPROVE');btn('ไม่อนุมัติ','RETURN','danger');}
- if(mine&&!a.unrelated_requested_at&&['OPEN','IN_PROGRESS'].includes(a.status)&&!a.approval_requested_at)btn('ไม่เกี่ยวข้อง','UNRELATED_REQUEST','secondary');
+ // Only receivers from their own department may request "not related".
+ // A system admin must use separately authorized admin controls, not act as
+ // an arbitrary departmental recipient through this button.
+ const mayMarkUnrelated=['user','department_admin'].includes(QA.profile?.role)&&
+   String(QA.profile?.department||'').toLowerCase()===String(a.department_code||'').toLowerCase();
+ if(mayMarkUnrelated&&!a.unrelated_requested_at&&['OPEN','IN_PROGRESS'].includes(a.status)&&!a.approval_requested_at)btn('ไม่เกี่ยวข้อง','UNRELATED_REQUEST','secondary');
  if(isRequester&&a.unrelated_requested_at){btn('ยืนยันลบแผนก','UNRELATED_CONFIRM','danger');btn('คงแผนกนี้ไว้','UNRELATED_REJECT','secondary');}
- if(isRequester&&a.status==='WAITING_REVIEW'){btn('ผ่าน','REQUESTER_PASS');btn('ไม่ผ่าน','REQUESTER_FAIL','danger');}
+ if(isFinalReviewer&&a.status==='WAITING_REVIEW'){btn('ผ่าน','REQUESTER_PASS');btn('ไม่ผ่าน','REQUESTER_FAIL','danger');}
+ // V49: system admin rollback is per assignment; SQL enforces transition/version/reason.
+ if(QA.profile?.role==='system_admin'){const back=({IN_PROGRESS:'OPEN',WAITING_REVIEW:'IN_PROGRESS',REWORK:'WAITING_REVIEW',CLOSED:'WAITING_REVIEW',CANCELLED:'OPEN'})[a.status];if(back){const b=document.createElement('button');b.type='button';b.className='danger';b.textContent='ย้อนสถานะ → '+label(back);b.onclick=()=>adminRollback(a,back);actions.append(b);}}
  for(const btnNote of el.querySelectorAll('.media-note-save'))btnNote.addEventListener('click',async()=>{
   const input=[...el.querySelectorAll('.media-note-input')].find(x=>x.dataset.attachment===btnNote.dataset.attachment);
   if(!input)return;btnNote.disabled=true;try{await rpc('qa_v38_media_set_note',{p_attachment_id:btnNote.dataset.attachment,p_note:input.value});setNote('บันทึกหมายเหตุเรียบร้อย');}catch(e){setNote('บันทึกหมายเหตุไม่สำเร็จ: '+e.message,true)}finally{btnNote.disabled=false}
@@ -112,7 +127,7 @@ async function render(){if(!jobId){setNote('ไม่พบหมายเลข
  }catch(e){setNote('อ่านใบงานไม่สำเร็จ: '+e.message,true);$('details').textContent='โปรดตรวจสิทธิ์ หรือกลับไปเปิดใบงานเดิม';}}
 async function renderHistory(){
  const box=$('historyRows');box.replaceChildren();try{const events=await rpc('qa_v38_job_history',{p_job_id:jobId});
- const names={ACCEPT:'รับงาน',SAVE_DRAFT:'บันทึกการดำเนินการ',REQUEST_APPROVAL:'ส่งให้หัวหน้าอนุมัติ',APPROVE:'หัวหน้าอนุมัติ',RETURN:'หัวหน้าไม่อนุมัติ',REQUESTER_PASS:'ผู้แจ้งตรวจรับผ่าน',REQUESTER_FAIL:'ผู้แจ้งไม่ผ่านการตรวจรับ',UNRELATED_REQUEST:'แจ้งไม่เกี่ยวข้อง',UNRELATED_CONFIRM:'ผู้แจ้งยืนยันถอดแผนก',UNRELATED_REJECT:'ผู้แจ้งคงแผนกไว้'};
+ const names={ACCEPT:'รับงาน',SAVE_DRAFT:'บันทึกการดำเนินการ',REQUEST_APPROVAL:'ส่งให้หัวหน้าอนุมัติ',APPROVE:'หัวหน้าอนุมัติ',RETURN:'หัวหน้าไม่อนุมัติ',REQUESTER_PASS:'ผู้แจ้งตรวจรับผ่าน',REQUESTER_FAIL:'ผู้แจ้งไม่ผ่านการตรวจรับ',ADMIN_ROLLBACK:'System Admin ย้อนสถานะ',UNRELATED_REQUEST:'แจ้งไม่เกี่ยวข้อง',UNRELATED_CONFIRM:'ผู้แจ้งยืนยันถอดแผนก',UNRELATED_REJECT:'ผู้แจ้งคงแผนกไว้'};
  for(const e of events||[]){const div=document.createElement('div');div.className='history-row';div.textContent=new Date(e.created_at).toLocaleString('th-TH',{timeZone:'Asia/Bangkok'})+' · '+(e.department_code||'')+' · '+(names[e.action]||e.action);box.append(div)}
  if(!events?.length)box.textContent='ยังไม่มีประวัติการดำเนินงาน';
  }catch(e){box.textContent='ไม่สามารถโหลดประวัติ: '+e.message}
@@ -128,7 +143,10 @@ function renderTracker(d){
  const chips=$('departmentChips');chips.replaceChildren();
  all.forEach((a,i)=>{const b=document.createElement('button');b.type='button';b.textContent=a.department_code+' · '+label(a.status);b.onclick=()=>{const groups=[...document.querySelectorAll('.issue-department-group')];groups.forEach(g=>g.classList.toggle('issue-dept-highlight',g.dataset.assignment===String(a.assignment_id)));[...chips.children].forEach((c,j)=>c.classList.toggle('active',j===i));const match=groups.find(g=>g.dataset.assignment===String(a.assignment_id));(match||panels[i])?.scrollIntoView({behavior:'smooth',block:'center'});};chips.append(b)});
 }
-async function act(a,action,el){let data={};if(action==='SAVE_DRAFT'||action==='REQUEST_APPROVAL'){data={receiver_problem_detail:el.querySelector('.recv').value,problem_analysis:el.querySelector('.analysis').value,corrective_action:el.querySelector('.fix').value,due_date:el.querySelector('.due').value};}
+async function act(a,action,el){
+ if(action==='UNRELATED_REQUEST'&&!( ['user','department_admin'].includes(QA.profile?.role)&&String(QA.profile?.department||'').toLowerCase()===String(a.department_code||'').toLowerCase())){setNote('ไม่มีสิทธิ์กดไม่เกี่ยวข้องสำหรับแผนกนี้',true);return;}
+ if(['REQUESTER_PASS','REQUESTER_FAIL'].includes(action)&&!(QA.profile?.role==='department_admin'&&String(QA.profile?.department||'').toLowerCase()===String(detail?.from_department||'').toLowerCase())){setNote('สิทธิ์ตรวจรับเป็นของหัวหน้าแผนกผู้แจ้งเท่านั้น',true);return;}
+ let data={};if(action==='SAVE_DRAFT'||action==='REQUEST_APPROVAL'){data={receiver_problem_detail:el.querySelector('.recv').value,problem_analysis:el.querySelector('.analysis').value,corrective_action:el.querySelector('.fix').value,due_date:el.querySelector('.due').value};}
  if(action==='REQUEST_APPROVAL'&&el.querySelector('.responseFiles')?.files?.length){setNote('กรุณากดบันทึกร่างเพื่ออัปโหลดไฟล์แนบก่อน แล้วจึงส่งให้หัวหน้าตรวจสอบ',true);return;}
  if(['RETURN','REQUESTER_FAIL','UNRELATED_REQUEST'].includes(action)){const reason=prompt(action==='RETURN'?'ระบุเหตุผลที่ไม่อนุมัติ':action==='REQUESTER_FAIL'?'ระบุเหตุผลที่ไม่ผ่าน':'ระบุเหตุผลที่ไม่เกี่ยวข้อง');if(!reason?.trim())return;data={reason:reason.trim()};}
  if(action==='ACCEPT'&&QA.profile.role==='system_admin'){data={comment:el.querySelector('.admin-accept-input')?.value.trim()||''};}
@@ -141,6 +159,15 @@ async function act(a,action,el){let data={};if(action==='SAVE_DRAFT'||action==='
  const {data:result,error}=await QA.client.rpc('qa_vnext_assignment_action',{p_assignment_id:a.assignment_id,p_action:action,p_expected_version:expected,p_data:action==='REQUEST_APPROVAL'?{}:data});if(error)throw error;
  if(action==='SAVE_DRAFT'){const files=[...el.querySelector('.responseFiles')?.files||[]];if(files.length)await uploadResponse(a.assignment_id,files);}
  setNote('บันทึกสำเร็จ');await render();}catch(e){setNote('ไม่สามารถบันทึกได้: '+e.message,true);}}
+async function adminRollback(a,target){
+ if(QA.profile?.role!=='system_admin'){setNote('เฉพาะ System Admin เท่านั้น',true);return;}
+ const reason=prompt('ระบุเหตุผลในการย้อนสถานะของแผนก '+a.department_code+' จาก '+label(a.status)+' ไป '+label(target)+' (จำเป็น)');
+ if(reason===null)return;
+ if(!reason.trim()){setNote('ต้องระบุเหตุผลในการย้อนสถานะ',true);return;}
+ if(!confirm('ยืนยันย้อนสถานะแผนก '+a.department_code+'?\nระบบจะเก็บประวัติการย้อนสถานะ และไม่เปลี่ยนแปลงแผนกอื่น'))return;
+ try{setNote('กำลังย้อนสถานะ...');await rpc('qa_vnext_admin_rollback_assignment',{p_assignment_id:a.assignment_id,p_target_status:target,p_expected_version:a.version,p_reason:reason.trim()});setNote('ย้อนสถานะเรียบร้อย');await render();}
+ catch(e){setNote('ย้อนสถานะไม่สำเร็จ: '+e.message,true);}
+}
 async function uploadIssue(issueNumber,files){const imgs=files.filter(f=>f.type.startsWith('image/'));const vids=files.filter(f=>f.type.startsWith('video/'));
  if(imgs.length>5||vids.length>1||imgs.length+vids.length!==files.length)throw new Error('เลือกได้สูงสุด 5 รูปและ 1 วิดีโอ');
  for(const f of files){const limit=f.type.startsWith('image/')?5242880:52428800;if(f.size>limit)throw new Error('ขนาดไฟล์เกิน '+f.name);
