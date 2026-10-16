@@ -15,7 +15,11 @@
  .vn-checks{display:flex;flex-wrap:wrap;gap:9px}.vn-checks label{border:1px solid #dae1ea;display:flex;align-items:center;gap:7px;padding:8px 10px;border-radius:8px;font-weight:400}
  .vn-checks input{width:auto}.vn-card textarea{min-height:82px}.vn-btn{border:1px solid #bdcad6;border-radius:8px;padding:10px 13px;cursor:pointer;background:#f1f5f9}
  .vn-files{font-size:12px;color:#526276}.vn-note{font-size:13px;color:#5b6675}
- .vn-source-buttons{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 12px}.vn-source-buttons button{background:#f1f5f9;color:#1f2937;border:1px solid #cbd5e1;border-radius:9px;padding:10px 18px;font-family:Arial,sans-serif;font-size:16px;font-weight:600;cursor:pointer}.vn-source-buttons button.active{background:#14274c;color:#fff;border-color:#14274c}
+ .vn-source-buttons{display:grid;grid-template-columns:repeat(2,minmax(160px,1fr));gap:10px;margin:0}
+ .vn-source-buttons button{background:white;color:#183153;border:2px solid #c0cedf;border-radius:8px;padding:9px 10px;min-height:46px;font-family:Arial,sans-serif;font-size:16px;font-weight:600;line-height:1.35;cursor:pointer;transition:background .15s,border-color .15s,box-shadow .15s}
+ .vn-source-buttons button.active{background:#14274c;color:#fff;border-color:#14274c;box-shadow:0 0 0 3px #b8d1f3}
+ .vn-source-buttons button:focus-visible{outline:3px solid #f59e0b;outline-offset:3px}
+ @media(max-width:480px){.vn-source-buttons{grid-template-columns:1fr}.vn-source-buttons button{min-height:44px}}
  .vn-checks label{font-size:13px;font-weight:700;position:relative;cursor:pointer}.vn-checks label:has(input:checked){background:#14274c;color:#fff;border-color:#14274c}.vn-checks input{position:absolute;opacity:0;width:0;height:0}
  .vn-file-grid{display:flex;flex-wrap:wrap;gap:9px;margin:10px 0}.vn-file-item{width:125px;border:1px solid #e2e8f0;background:#f8fafc;border-radius:9px;padding:6px}.vn-file-item img,.vn-file-item video{width:100%;height:78px;object-fit:contain;border-radius:6px;background:white}.vn-file-item textarea{width:100%;font-size:12px;min-height:53px;resize:vertical}.vn-file-item button{font-size:12px;padding:4px 7px}.vn-file-item span{display:block;height:78px;text-align:center;padding-top:20px;color:#64748b}
  /* V38: visual spacing inside each issue only; no changes to form logic */
