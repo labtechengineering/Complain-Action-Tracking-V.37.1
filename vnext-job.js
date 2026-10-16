@@ -216,7 +216,7 @@ async function render(){if(!jobId){setNote('ไม่พบหมายเลข
  // an arbitrary departmental recipient through this button.
  const mayMarkUnrelated=['user','department_admin'].includes(QA.profile?.role)&&
    String(QA.profile?.department||'').toLowerCase()===String(a.department_code||'').toLowerCase();
- if(mayMarkUnrelated&&!a.unrelated_requested_at&&['OPEN','IN_PROGRESS','CANCELLED'].includes(a.status)&&!a.approval_requested_at)btn('ไม่เกี่ยวข้อง','UNRELATED_REQUEST','secondary');
+ if(mayMarkUnrelated&&a.status==='OPEN'&&!a.accepted_at&&!a.responsible_user&&!a.unrelated_requested_at&&!a.approval_requested_at)btn('ไม่เกี่ยวข้อง','UNRELATED_REQUEST','secondary');
  // Requester decisions for unrelated work are now inside section 2, beside the affected issue.
  if(isFinalReviewer&&a.status==='WAITING_REVIEW'){btn('ผ่าน','REQUESTER_PASS');btn('ไม่ผ่าน','REQUESTER_FAIL','danger');}
  // V49: system admin rollback is per assignment; SQL enforces transition/version/reason.
@@ -254,6 +254,7 @@ const pendingAssignmentActions=new Set();
 async function act(a,action,el){
  if(pendingAssignmentActions.has(a.assignment_id))return;
  if(action==='UNRELATED_REQUEST'&&!( ['user','department_admin'].includes(QA.profile?.role)&&String(QA.profile?.department||'').toLowerCase()===String(a.department_code||'').toLowerCase())){setNote('ไม่มีสิทธิ์กดไม่เกี่ยวข้องสำหรับแผนกนี้',true);return;}
+ if(action==='UNRELATED_REQUEST'&&(a.status!=='OPEN'||a.accepted_at||a.responsible_user||a.approval_requested_at)){setNote('รับงานแล้วไม่สามารถกดไม่เกี่ยวข้องได้ หากต้องแก้ฝ่ายรับงานกรุณาติดต่อ System Admin เพื่อย้อนสถานะก่อน',true);return;}
  if(['REQUESTER_PASS','REQUESTER_FAIL'].includes(action)&&!(QA.profile?.role==='department_admin'&&String(QA.profile?.department||'').toLowerCase()===String(detail?.from_department||'').toLowerCase())){setNote('สิทธิ์ตรวจรับเป็นของหัวหน้าแผนกผู้แจ้งเท่านั้น',true);return;}
  let data={};if(['SAVE_DRAFT','REQUEST_APPROVAL','HEAD_SEND'].includes(action)){data={receiver_problem_detail:el.querySelector('.recv').value,problem_analysis:el.querySelector('.analysis').value,corrective_action:el.querySelector('.fix').value,due_date:el.querySelector('.due').value};}
  if(['REQUEST_APPROVAL','HEAD_SEND'].includes(action)&&el.querySelector('.responseFiles')?.files?.length){setNote('กรุณากดบันทึกร่างเพื่ออัปโหลดไฟล์แนบก่อน แล้วจึงส่งให้หัวหน้าตรวจสอบ',true);return;}
