@@ -108,7 +108,7 @@ async function render(){if(!jobId){setNote('ไม่พบหมายเลข
    displayedIssues.add(uniqueKey);
    const pendingHere=(detail.is_requester||QA.profile?.role==='system_admin')&&a.unrelated_requested_at&&['OPEN','IN_PROGRESS','CANCELLED'].includes(a.status);
    const decision=pendingHere?`<div class="no-print unrelated-decision" data-issue-id="${esc(i.issue_id)}" data-assignment-id="${esc(a.assignment_id)}" data-version="${esc(a.version)}"><h4>↩ แผนกรับเรื่องแจ้งว่าไม่เกี่ยวข้อง</h4><p class="unrelated-explanation">แผนก ${esc(a.department_code)} แจ้งเหตุผล: ${esc(a.unrelated_reason||'-')}</p><p>เลือกดำเนินการอย่างใดอย่างหนึ่ง (เลข CAR และเลขปัญหาเดิมไม่เปลี่ยน)</p><div class="unrelated-decision-buttons"><button type="button" class="unrelated-change-toggle">แก้ไขฝ่ายรับงาน</button><button type="button" class="unrelated-keep-original secondary">ยืนยันฝ่ายรับงานเดิม</button></div><div class="unrelated-change-form" hidden><b>เลือกฝ่ายรับงานใหม่</b><div class="receiver-checkboxes">${receivingDepartments.map(d=>`<label style="display:inline-flex;gap:6px;margin:6px 14px 6px 0"><input type="checkbox" value="${esc(d.code)}" ${detail.assignments.some(a2=>a2.department_code===d.code&&(a2.issues||[]).some(x=>x.issue_id===i.issue_id))?'checked':''}>${esc(d.code)}</label>`).join('')}</div><p class="muted">เมื่อบันทึก ระบบจะส่งภาพแจ้งแก้ไขฝ่ายรับงานไปยัง LINE กลุ่มเดิม (${esc(detail.source_type)}) โดยอัตโนมัติ</p><button type="button" class="unrelated-change-save">ยืนยันแก้ฝ่ายรับงานและส่ง LINE</button></div></div>`:'';
-   cards.push(`<article class="issue issue-card id="issue-${esc(i.issue_id)}" data-issue-id="${esc(i.issue_id)}"><h3><span class="issue-code">${esc(issueCodeFor(a,i))}</span> · ปัญหา ${esc(i.issue_number)} <span class="issue-category">${esc(categoryName(i.category_code))}</span></h3><p>${esc(i.description)}</p>${issueEditable?`<div class="no-print issue-edit-controls" hidden><label>แก้ไขรายละเอียดปัญหา<textarea class="issue-edit-description" data-issue-id="${esc(i.issue_id)}" maxlength="20000">${esc(i.description)}</textarea></label><button type="button" class="issue-edit-save" data-issue-id="${esc(i.issue_id)}">บันทึกการแก้ไขปัญหา</button></div>`:''}<b>ไฟล์แนบจากผู้แจ้ง</b>${await mediaFor([i.issue_id],null,issueEditable)}${issueEditable&&receivingDepartments.length?`<div class="no-print issue-reassign" data-issue-id="${esc(i.issue_id)}"><b>แก้ฝ่ายรับเรื่อง (ก่อนมีผู้รับงาน)</b><div class="receiver-checkboxes">${receivingDepartments.map(d=>`<label style="display:inline-flex;gap:6px;margin:6px 14px 6px 0"><input type="checkbox" value="${esc(d.code)}" ${detail.assignments.some(a2=>a2.department_code===d.code&&(a2.issues||[]).some(x=>x.issue_id===i.issue_id))?'checked':''}>${esc(d.code)}</label>`).join('')}</div><button type="button" class="issue-reassign-save" data-issue-id="${esc(i.issue_id)}">บันทึกเปลี่ยนแผนก</button></div>`:''}${decision}${issueEditable?`<div class="no-print"><label>เพิ่มไฟล์ของปัญหา ${esc(i.issue_number)}<input class="issueFiles" data-issue-number="${esc(i.issue_number)}" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" multiple></label></div>`:''}</article>`);
+   cards.push(`<article class="issue issue-card" id="issue-${esc(i.issue_id)}" data-issue-id="${esc(i.issue_id)}"><h3><span class="issue-code">${esc(issueCodeFor(a,i))}</span> · ปัญหา ${esc(i.issue_number)} <span class="issue-category">${esc(categoryName(i.category_code))}</span></h3><p>${esc(i.description)}</p>${issueEditable?`<div class="no-print issue-edit-controls" hidden><label>แก้ไขรายละเอียดปัญหา<textarea class="issue-edit-description" data-issue-id="${esc(i.issue_id)}" maxlength="20000">${esc(i.description)}</textarea></label><button type="button" class="issue-edit-save" data-issue-id="${esc(i.issue_id)}">บันทึกการแก้ไขปัญหา</button></div>`:''}<b>ไฟล์แนบจากผู้แจ้ง</b>${await mediaFor([i.issue_id],null,issueEditable)}${issueEditable&&receivingDepartments.length?`<div class="no-print issue-reassign" data-issue-id="${esc(i.issue_id)}"><b>แก้ฝ่ายรับเรื่อง (ก่อนมีผู้รับงาน)</b><div class="receiver-checkboxes">${receivingDepartments.map(d=>`<label style="display:inline-flex;gap:6px;margin:6px 14px 6px 0"><input type="checkbox" value="${esc(d.code)}" ${detail.assignments.some(a2=>a2.department_code===d.code&&(a2.issues||[]).some(x=>x.issue_id===i.issue_id))?'checked':''}>${esc(d.code)}</label>`).join('')}</div><button type="button" class="issue-reassign-save" data-issue-id="${esc(i.issue_id)}">บันทึกเปลี่ยนแผนก</button></div>`:''}${decision}${issueEditable?`<div class="no-print"><label>เพิ่มไฟล์ของปัญหา ${esc(i.issue_number)}<input class="issueFiles" data-issue-number="${esc(i.issue_number)}" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" multiple></label></div>`:''}</article>`);
   }
   deptGroup.innerHTML=`<h3 class="issue-dept-title">แผนก ${esc(a.department_code||'-')}</h3>${cards.join('')||'<p class="muted">ไม่มีรายการปัญหาสำหรับแผนกนี้</p>'}`;
   issueHost.append(deptGroup);
@@ -142,32 +142,83 @@ async function render(){if(!jobId){setNote('ไม่พบหมายเลข
   }
    catch(e){setNote('เปลี่ยนแผนกไม่สำเร็จ: '+e.message,true);button.disabled=false;}
  });
+ // Show button results beside the user's current action; the global feedback is above the fold.
+ function unrelatedFeedback(root,message,isError=false){
+  let note=root.querySelector('.unrelated-inline-feedback');
+  if(!note){note=document.createElement('p');note.className='unrelated-inline-feedback';note.setAttribute('role','status');note.setAttribute('aria-live','polite');root.append(note);}
+  note.textContent=message;note.style.color=isError?'#b91c1c':'#166534';
+  return note;
+ }
+ function unrelatedToast(message,isError=false){
+  let toast=document.getElementById('unrelatedActionToast');
+  if(!toast){toast=document.createElement('div');toast.id='unrelatedActionToast';toast.setAttribute('role','status');toast.setAttribute('aria-live','polite');document.body.append(toast);}
+  toast.textContent=message;toast.style.background=isError?'#991b1b':'#166534';toast.hidden=false;
+  if(unrelatedToast.hideTimer)clearTimeout(unrelatedToast.hideTimer);
+  unrelatedToast.hideTimer=setTimeout(()=>{toast.hidden=true;},isError?14000:8000);
+ }
+ function unrelatedBusy(root,busy,clicked){
+  for(const button of root.querySelectorAll('button')){
+   if(busy){button.dataset.prevLabel=button.textContent;button.disabled=true;}
+   else{button.disabled=false;if(button.dataset.prevLabel){button.textContent=button.dataset.prevLabel;delete button.dataset.prevLabel;}}
+  }
+  if(busy&&clicked){clicked.textContent='กำลังบันทึก...';clicked.setAttribute('aria-busy','true');}
+  else if(clicked)clicked.removeAttribute('aria-busy');
+ }
  // Unrelated return: exactly two explicit requester decisions for the affected issue.
  for(const root of issueSheet.querySelectorAll('.unrelated-decision')){
   const change=root.querySelector('.unrelated-change-form');
-  root.querySelector('.unrelated-change-toggle').addEventListener('click',()=>{change.hidden=!change.hidden;if(!change.hidden)change.scrollIntoView({behavior:'smooth',block:'nearest'});});
-  root.querySelector('.unrelated-keep-original').addEventListener('click',async()=>{
+  const toggle=root.querySelector('.unrelated-change-toggle');
+  const keep=root.querySelector('.unrelated-keep-original');
+  const save=root.querySelector('.unrelated-change-save');
+  toggle.addEventListener('click',()=>{
+   change.hidden=!change.hidden;
+   toggle.textContent=change.hidden?'แก้ไขฝ่ายรับงาน':'ซ่อนตัวเลือกแผนก';
+   unrelatedFeedback(root,change.hidden?'ซ่อนตัวเลือกแผนกแล้ว':'เลือกฝ่ายรับงานใหม่ โดยยกเลิกการเลือกแผนกที่แจ้งว่าไม่เกี่ยวข้อง แล้วกดปุ่มยืนยันด้านล่าง');
+   if(!change.hidden)change.scrollIntoView({behavior:'smooth',block:'nearest'});
+  });
+  keep.addEventListener('click',async()=>{
+   if(keep.disabled)return;
    if(!confirm('ยืนยันใช้ฝ่ายรับงานเดิมและส่งกลับให้แผนกเดิมดำเนินการ?'))return;
-   const buttons=[...root.querySelectorAll('button')];buttons.forEach(b=>b.disabled=true);
-   try{setNote('กำลังยืนยันฝ่ายรับงานเดิม...');const result=await rpc('qa_v51_confirm_unrelated_original',{p_issue_id:root.dataset.issueId,p_assignment_id:root.dataset.assignmentId,p_expected_version:Number(root.dataset.version)});
+   unrelatedBusy(root,true,keep);
+   unrelatedFeedback(root,'กำลังยืนยันฝ่ายรับงานเดิม กรุณารอสักครู่...');
+   try{
+    const result=await rpc('qa_v51_confirm_unrelated_original',{p_issue_id:root.dataset.issueId,p_assignment_id:root.dataset.assignmentId,p_expected_version:Number(root.dataset.version)});
     const event=result?.event_id?{event_id:result.event_id,issue_id:root.dataset.issueId,issue_number:result.issue_number,old_departments:result.old_departments,new_departments:result.new_departments,confirm_original:true}:null;
     if(event)sessionStorage.setItem('qa-v49-pending-line:'+jobId,JSON.stringify(event));
-    await render();if(event)await notifyReceiverChange(event);else setNote('ยืนยันฝ่ายรับงานเดิมเรียบร้อย');
-   }catch(e){setNote('ยืนยันฝ่ายรับงานเดิมไม่สำเร็จ: '+e.message,true);buttons.forEach(b=>b.disabled=false);}
+    await render();
+    if(event)await notifyReceiverChange(event);
+    else setNote('ยืนยันฝ่ายรับงานเดิมเรียบร้อย');
+    unrelatedToast($('feedback').textContent||'ยืนยันฝ่ายรับงานเดิมเรียบร้อย',!!event&&$('feedback').style.color==='rgb(185, 28, 28)');
+   }catch(e){
+    const message='ยืนยันฝ่ายรับงานเดิมไม่สำเร็จ: '+(e?.message||String(e));
+    setNote(message,true);unrelatedFeedback(root,message,true);unrelatedToast(message,true);unrelatedBusy(root,false,keep);
+   }
   });
-  root.querySelector('.unrelated-change-save').addEventListener('click',async()=>{
+  save.addEventListener('click',async()=>{
+   if(save.disabled)return;
    const codes=[...root.querySelectorAll('.receiver-checkboxes input:checked')].map(x=>x.value);
-   if(!codes.length){setNote('กรุณาเลือกฝ่ายรับเรื่องอย่างน้อยหนึ่งแผนก',true);return;}
-   if(codes.includes(String(detail.assignments.find(a=>a.assignment_id===root.dataset.assignmentId)?.department_code||''))){setNote('ถ้าจะใช้แผนกเดิม ให้กด “ยืนยันฝ่ายรับงานเดิม” หรือเอาแผนกที่แจ้งว่าไม่เกี่ยวข้องออกก่อน',true);return;}
+   if(!codes.length){unrelatedFeedback(root,'กรุณาเลือกฝ่ายรับเรื่องอย่างน้อยหนึ่งแผนก',true);return;}
+   const original=String(detail.assignments.find(a=>a.assignment_id===root.dataset.assignmentId)?.department_code||'');
+   if(codes.includes(original)){
+    unrelatedFeedback(root,'ต้องเอาเครื่องหมายถูกออกจาก '+original+' ก่อน หากต้องการใช้แผนกเดิมให้กด “ยืนยันฝ่ายรับงานเดิม”',true);return;
+   }
    if(!confirm('ยืนยันเปลี่ยนฝ่ายรับงาน? ระบบจะส่งภาพแจ้งแก้ไขเข้า LINE กลุ่ม '+String(detail.source_type||'')))return;
-   const buttons=[...root.querySelectorAll('button')];buttons.forEach(b=>b.disabled=true);
-   try{setNote('กำลังเปลี่ยนฝ่ายรับงาน...');const result=await rpc('qa_v51_resolve_unrelated_change',{p_issue_id:root.dataset.issueId,p_assignment_id:root.dataset.assignmentId,p_expected_version:Number(root.dataset.version),p_departments:codes});
+   unrelatedBusy(root,true,save);
+   unrelatedFeedback(root,'กำลังเปลี่ยนฝ่ายรับงาน กรุณารอสักครู่...');
+   try{
+    const result=await rpc('qa_v51_resolve_unrelated_change',{p_issue_id:root.dataset.issueId,p_assignment_id:root.dataset.assignmentId,p_expected_version:Number(root.dataset.version),p_departments:codes});
     if(!result?.event_id)throw new Error('ไม่มีเหตุการณ์ LINE หลังแก้แผนก');
     const event={event_id:result.event_id,issue_id:root.dataset.issueId,issue_number:result.issue_number,old_departments:result.old_departments,new_departments:result.new_departments};
-    sessionStorage.setItem('qa-v49-pending-line:'+jobId,JSON.stringify(event));await render();await notifyReceiverChange(event);
-   }catch(e){setNote('แก้ฝ่ายรับงานไม่สำเร็จ: '+e.message+(String(e.message).includes('ADMIN_ROLLBACK_REQUIRED')?' — ต้องให้ System Admin ย้อนสถานะการรับงานก่อน':'') ,true);buttons.forEach(b=>b.disabled=false);}
+    sessionStorage.setItem('qa-v49-pending-line:'+jobId,JSON.stringify(event));
+    await render();await notifyReceiverChange(event);
+    unrelatedToast($('feedback').textContent||'บันทึกฝ่ายรับงานแล้ว', $('feedback').style.color==='rgb(185, 28, 28)');
+   }catch(e){
+    const message='แก้ฝ่ายรับงานไม่สำเร็จ: '+(e?.message||String(e))+(String(e?.message||'').includes('ADMIN_ROLLBACK_REQUIRED')?' — ต้องให้ System Admin ย้อนสถานะการรับงานก่อน':'');
+    setNote(message,true);unrelatedFeedback(root,message,true);unrelatedToast(message,true);unrelatedBusy(root,false,save);
+   }
   });
  }
+
  // Response and approval areas stay as individual department panels below section 2.
  for(const a of detail.assignments){
  const mine=QA.profile?.department===a.department_code||QA.profile?.role==='system_admin';
