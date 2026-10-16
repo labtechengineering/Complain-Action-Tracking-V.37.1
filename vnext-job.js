@@ -55,7 +55,12 @@ async function notifyReceiverChange(ev){
 
 async function render(){if(!jobId){setNote('ไม่พบหมายเลขงาน',true);return;}
  try{await loadCategoryNames();detail=await rpc('qa_vnext_job_detail',{p_job_id:jobId});media=await rpc('qa_vnext_media_list',{p_job_id:jobId});
- const archived=await rpc('qa_v51_assignment_rounds',{p_job_id:jobId});completedRounds=new Map();for(const row of (archived||[])){const key=String(row.assignment_id);if(!completedRounds.has(key))completedRounds.set(key,[]);completedRounds.get(key).push(row);}
+ // Correction history is supplementary. An error here must never hide a job the user can otherwise read.
+ let archived=[];let roundLoadWarning='';
+ try{archived=await rpc('qa_v51_assignment_rounds',{p_job_id:jobId});}
+ catch(roundError){roundLoadWarning='โหลดประวัติการแก้ไขไม่สำเร็จ: '+(roundError?.message||String(roundError));console.warn('Correction rounds unavailable:',roundError);}
+ completedRounds=new Map();for(const row of (Array.isArray(archived)?archived:[])){const key=String(row.assignment_id);if(!completedRounds.has(key))completedRounds.set(key,[]);completedRounds.get(key).push(row);}
+ if(roundLoadWarning)setNote(roundLoadWarning,true);
  detail.assignments=(detail.assignments||[]).filter(a=>(a.issues||[]).length>0);
  if(!Array.isArray(media))media=[];
  if(detail.can_manage_issues){try{const rec=await rpc('qa_vnext_receivers',{});receivingDepartments=Array.isArray(rec)?rec.map(x=>({code:String(x.department_code||x.code||''),enabled:x.enabled!==false})).filter(x=>x.code&&x.enabled):[];}catch(_e){receivingDepartments=[];}}
@@ -207,7 +212,7 @@ function renderTracker(d){
  document.querySelectorAll('[data-step]').forEach((el,i)=>{el.classList.toggle('done',i<current);el.classList.toggle('current',i===current)});
  document.querySelector('.tracker-stages')?.style.setProperty('--track-progress',String(current*100/3*0.75)+'%');
  const chips=$('departmentChips');chips.replaceChildren();
- all.forEach((a,i)=>{const b=document.createElement('button');b.type='button';b.textContent=a.department_code+' · '+label(a.status);b.onclick=()=>{const groups=[...document.querySelectorAll('.issue-department-group')];groups.forEach(g=>g.classList.toggle('issue-dept-highlight',g.dataset.assignment===String(a.assignment_id)));[...chips.children].forEach((c,j)=>c.classList.toggle('active',j===i));const match=groups.find(g=>g.dataset.assignment===String(a.assignment_id));(match||panels[i])?.scrollIntoView({behavior:'smooth',block:'center'});};chips.append(b)});
+ all.forEach((a,i)=>{const b=document.createElement('button');b.type='button';b.textContent=a.department_code+' · '+label(a.status);b.onclick=()=>{const groups=[...document.querySelectorAll('.issue-department-group')];groups.forEach(g=>g.classList.toggle('issue-dept-highlight',g.dataset.assignment===String(a.assignment_id)));[...chips.children].forEach((c,j)=>c.classList.toggle('active',j===i));const match=groups.find(g=>g.dataset.assignment===String(a.assignment_id));const target=match||panels.find(p=>p.dataset.assignment===String(a.assignment_id));if(target){target.scrollIntoView({behavior:'smooth',block:'start'});target.classList.add('issue-dept-highlight');}};chips.append(b)});
 }
 const pendingAssignmentActions=new Set();
 async function act(a,action,el){
