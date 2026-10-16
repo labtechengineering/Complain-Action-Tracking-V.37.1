@@ -121,7 +121,7 @@ function renderRows(){
  const show=filtered.slice(page*count,(page+1)*count);
  $('jobRows').innerHTML=show.length?show.map(e=>{
   const j=e.job,i=e.issue,st=issueRowStatus(e),status=st==='MIXED'?'หลายสถานะ':(statuses.find(a=>a[0]===st)?.[1]||'ไม่ระบุ');
-  const baseUrl=window.QA?.jobUrl?.(j.jobId)||'vnext-job.html?id='+encodeURIComponent(j.jobId);
+  const baseUrl='vnext-job.html?id='+encodeURIComponent(j.jobId);
   const url=baseUrl.split('#')[0]+'#issue-'+encodeURIComponent(String(i.issue_id));
   const route=`${j.fromDepartment||'—'} → ${e.departments.join(', ')||'—'}`;
   const problem=`ปัญหา ${i.issue_number??'—'}: ${i.description||j.problemDetail||'—'}`;
