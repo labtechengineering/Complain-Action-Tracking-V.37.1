@@ -41,16 +41,9 @@
 .response-prior-round h3{margin:0 0 10px}
 .response-prior-round p{margin:8px 0;line-height:1.6}
 .rework-reminder{color:#b91c1c;font-weight:400}
-.issue-department-group,.department-panel{scroll-margin-top:110px}.issue-dept-highlight{outline:2px solid #2563eb;outline-offset:4px;border-radius:8px}.rework-unarchived{background:#fffbeb;border:1px solid #f59e0b;color:#92400e;border-radius:9px;padding:12px;margin:10px 0;font-size:13px;font-weight:400}.unrelated-decision{border:2px solid #eab308;background:#fffbeb;border-radius:10px;padding:15px;margin:15px 0}.unrelated-decision h4{margin:0 0 8px;color:#92400e}.unrelated-decision-buttons{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0}.unrelated-decision button{min-height:42px}.unrelated-change-form{border-top:1px solid #e8cf81;margin-top:10px;padding-top:13px}.unrelated-change-form[hidden]{display:none!important}.unrelated-explanation{overflow-wrap:anywhere}
-/* V50.12: action feedback only, located at the unrelated decision */
-.unrelated-inline-feedback{margin:10px 0 2px;padding:9px 11px;border-radius:7px;background:#fff;color:#166534;font-size:13px;font-weight:400;line-height:1.55;overflow-wrap:anywhere}
-.unrelated-decision button:active:not(:disabled){transform:translateY(2px);filter:brightness(.88)}
-.unrelated-decision button:disabled{opacity:.62;cursor:wait}
-#unrelatedActionToast{position:fixed;z-index:100000;right:20px;bottom:20px;max-width:min(450px,calc(100vw - 40px));padding:15px 18px;border-radius:10px;color:white;font-size:14px;line-height:1.5;box-shadow:0 8px 24px rgba(0,0,0,.2);overflow-wrap:anywhere}
-#unrelatedActionToast[hidden]{display:none!important}
-</style></head>
+.issue-department-group,.department-panel{scroll-margin-top:110px}.issue-dept-highlight{outline:2px solid #2563eb;outline-offset:4px;border-radius:8px}.rework-unarchived{background:#fffbeb;border:1px solid #f59e0b;color:#92400e;border-radius:9px;padding:12px;margin:10px 0;font-size:13px;font-weight:400}</style></head>
 <body class="qa-auth-loading"><main class="page" id="captureArea"><div class="job-topbar"><h1>Complain &amp; Action Tracking</h1><div class="job-toolbar no-print"><button id="editRequestBtn" type="button" hidden>แก้ไขใบแจ้ง</button><button id="pdfButton">Export PDF</button></div></div>
 <div id="feedback" role="status" class="vn-status"></div>
 <section id="jobTracker" class="sheet job-tracker" aria-label="สถานะใบงาน"><h2 id="jobTrackerNumber"></h2><div class="tracker-stages"><span class="track-stage" data-step="OPEN"><span class="track-node" aria-hidden="true">1</span>แจ้งงาน</span><span class="track-stage" data-step="IN_PROGRESS"><span class="track-node" aria-hidden="true">2</span>ดำเนินการ</span><span class="track-stage" data-step="WAITING_REVIEW"><span class="track-node" aria-hidden="true">3</span>รอตรวจสอบ</span><span class="track-stage" data-step="CLOSED"><span class="track-node" aria-hidden="true">4</span>สำเร็จ</span></div><div id="departmentChips" class="department-chips"></div></section>
 <section id="details" class="sheet">กำลังโหลดรายละเอียด...</section><div id="assignments"></div><section id="jobHistory" class="sheet"><h2>ประวัติการดำเนินงาน</h2><div id="historyRows" class="history-rows"></div></section></main>
-<script src="vnext-job.js?v=50.12.0" defer></script></body></html>
+<script src="vnext-job.js?v=50.13.0" defer></script></body></html>
