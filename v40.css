@@ -20,3 +20,30 @@
 .donutpanel{display:flex;flex-direction:column}
 .donutpanel .donut-layout{flex:1;justify-content:center;align-items:center;gap:12px;margin-top:0;min-height:225px}
 @media(max-width:680px){.donutpanel .donut-layout{justify-content:center;gap:10px;min-height:185px}}
+
+/* Dashboard-only density and single-row header; other pages remain unchanged. */
+.dashboard-compact .main{padding-top:14px;padding-bottom:12px}
+.dashboard-compact header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px 16px;margin-bottom:10px}
+.dashboard-compact header h1{font-size:22px}
+.dashboard-compact .welcome{margin:0;padding:6px 11px;font-size:12px;white-space:nowrap;background:#e7f4fd;border-radius:8px}
+.dashboard-compact .controls{margin:8px 0;padding:8px 10px}
+.dashboard-compact .controls input,.dashboard-compact .controls select,.dashboard-compact .controls button{padding-top:7px;padding-bottom:7px}
+.dashboard-compact .cards{margin:10px 0;gap:10px}
+.dashboard-compact .stat{min-height:76px;padding:10px 14px}
+.dashboard-compact .stat strong{font-size:25px;margin-top:3px}
+.dashboard-compact .charts{gap:10px}
+.dashboard-compact .panel{padding:12px}
+.dashboard-compact .bargraph{height:193px;margin-top:9px}
+.dashboard-compact .legend{padding-top:7px}
+.dashboard-compact .donutpanel .donut-layout{min-height:192px}
+.dashboard-compact .donut-wrap{flex-basis:162px}
+.dashboard-compact .donut{width:162px;height:162px}
+.dashboard-compact .donut-center{width:103px;height:103px}
+.dashboard-compact .donut-center strong{font-size:28px}
+.dashboard-compact .listpanel{margin-top:10px}
+.dashboard-compact .listhead{margin-bottom:7px}
+.dashboard-compact .list-columns,.dashboard-compact .job-row{padding-top:7px;padding-bottom:7px}
+.dashboard-compact .job-row{min-height:40px}
+.dashboard-compact .pagination{margin-top:7px}
+@media(max-width:1050px){.dashboard-compact .donutpanel .donut-layout{min-height:175px}}
+@media(max-width:680px){.dashboard-compact header{align-items:flex-start}.dashboard-compact header h1{font-size:19px}.dashboard-compact .welcome{white-space:normal}.dashboard-compact .charts{grid-template-columns:1fr}}
