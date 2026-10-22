@@ -117,7 +117,7 @@ function renderRows(){
  $('listTitle').textContent=label;
  const filtered=base.flatMap(j=>issueRowsFor(j)).filter(e=>(selected==='all'||e.statuses.has(selected))&&(!selectedDept||e.departments.includes(selectedDept)))
  .sort(compareLatestIssueRows);
- const count=expanded?pageSize:4,pageCount=Math.max(1,Math.ceil(filtered.length/count));page=Math.max(0,Math.min(page,pageCount-1));
+ const count=expanded?pageSize:6,pageCount=Math.max(1,Math.ceil(filtered.length/count));page=Math.max(0,Math.min(page,pageCount-1));
  const show=filtered.slice(page*count,(page+1)*count);
  $('jobRows').innerHTML=show.length?show.map(e=>{
   const j=e.job,i=e.issue,st=issueRowStatus(e),status=st==='MIXED'?'หลายสถานะ':(statuses.find(a=>a[0]===st)?.[1]||'ไม่ระบุ');
@@ -144,7 +144,7 @@ function renderRows(){
   const unrelatedBadge=unrelatedPending?'<span class="head-approval-flag" title="แผนกผู้รับเรื่องแจ้งว่าไม่เกี่ยวข้อง รอฝ่ายผู้แจ้งพิจารณา">↩ งานไม่เกี่ยวข้อง</span>':unrelatedConfirmed?'<span class="head-approval-flag" title="ฝ่ายผู้แจ้งยืนยันว่าปัญหาไม่เกี่ยวข้องกับแผนกนี้แล้ว">↩ งานไม่เกี่ยวข้อง (ยืนยันแล้ว)</span>':'';
   return `<a class="job-row" href="${safe(url)}" title="เปิดปัญหา ${safe(issueCode)}"><span title="${safe(issueCode)}"><b>${safe(issueCode)}</b></span><span title="${safe(j.customerName)}">${safe(j.customerName||'ไม่ระบุ')}</span><span title="${safe(j.serialNo)}">${safe(j.serialNo||'—')}</span><span class="route" title="${safe(route)}">${safe(route)}</span><span title="${safe(problem)}">${safe(problem)}</span><span><i class="pill ${safe(st)}">${safe(status)}</i>${headBadge}${requesterBadge}${reworkBadge}${unrelatedBadge}</span><span title="${safe(timeText(j))}">${safe(timeText(j))}</span></a>`;
  }).join(''):'<div class="empty">ไม่พบรายการปัญหา</div>';
- $('viewAll').textContent=expanded?'แสดง 4 ปัญหาล่าสุด':'ดูทั้งหมด ('+filtered.length+')';$('pagination').hidden=!expanded||filtered.length<=pageSize;$('prevPage').disabled=page===0;$('nextPage').disabled=page>=pageCount-1;$('pageInfo').textContent=`หน้า ${page+1} / ${pageCount}`;
+ $('viewAll').textContent=expanded?'แสดง 6 ปัญหาล่าสุด':'ดูทั้งหมด ('+filtered.length+')';$('pagination').hidden=!expanded||filtered.length<=pageSize;$('prevPage').disabled=page===0;$('nextPage').disabled=page>=pageCount-1;$('pageInfo').textContent=`หน้า ${page+1} / ${pageCount}`;
  document.querySelectorAll('.stat').forEach(el=>el.classList.toggle('active',el.dataset.status===selected));
 }
 

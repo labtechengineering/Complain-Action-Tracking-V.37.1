@@ -47,3 +47,18 @@
 .dashboard-compact .pagination{margin-top:7px}
 @media(max-width:1050px){.dashboard-compact .donutpanel .donut-layout{min-height:175px}}
 @media(max-width:680px){.dashboard-compact header{align-items:flex-start}.dashboard-compact header h1{font-size:19px}.dashboard-compact .welcome{white-space:normal}.dashboard-compact .charts{grid-template-columns:1fr}}
+
+/* V52: balance the 100%-zoom desktop dashboard; preserve mobile layouts. */
+.dashboard-compact #pagination[hidden]{display:none!important}
+@media (min-width:1051px) and (min-height:740px){
+  .dashboard-compact .bargraph{height:211px}
+  .dashboard-compact .donutpanel .donut-layout{min-height:210px}
+  .dashboard-compact .donut-wrap{flex-basis:174px}
+  .dashboard-compact .donut{width:174px;height:174px}
+  .dashboard-compact .donut-center{width:110px;height:110px}
+  .dashboard-compact .listpanel .job-row{min-height:42px}
+}
+@media (min-width:1051px) and (max-height:740px){
+  .dashboard-compact .bargraph{height:176px}
+  .dashboard-compact .donutpanel .donut-layout{min-height:176px}
+}
