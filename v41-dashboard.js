@@ -18,6 +18,21 @@ function jobCarOrder(j){
  const m=String(j.carCode||'').match(/CAR[-\s]*(\d{4})[-\s]*(\d+)(?:-|$)/i);
  return m?{year:Number(m[1]),seq:Number(m[2])}:null;
 }
+function reviewAssignments(entry){
+ const p=window.QA?.profile||{};
+ if(String(p.role||'').toLowerCase()!=='department_admin')return [];
+ return entry.assignments.filter(a=>
+  QAWorkflow.permissions(p,entry.job,a).canResolveUnrelated||
+  (norm(entry.job.fromDepartment)===norm(p.department)&&a.rawStatus==='WAITING_REVIEW')||
+  (norm(a.department)===norm(p.department)&&a.rawStatus==='IN_PROGRESS'&&Boolean(a.approvalRequestedAt)));
+}
+function reviewArrival(entry){return Math.max(0,...reviewAssignments(entry).map(a=>Date.parse(QAWorkflow.permissions(QA.profile,entry.job,a).canResolveUnrelated?a.unrelatedRequestedAt:a.rawStatus==='WAITING_REVIEW'?(a.approvedAt||a.approvalRequestedAt):a.approvalRequestedAt)||0));}
+function compareReviewArrivals(a,b){
+ const ar=reviewAssignments(a).length>0,br=reviewAssignments(b).length>0;
+ if(ar!==br)return ar?-1:1;
+ if(ar&&br){const d=reviewArrival(b)-reviewArrival(a);if(d)return d;}
+ return compareLatestIssueRows(a,b);
+}
 function compareLatestIssueRows(a,b){
  const x=jobCarOrder(a.job),y=jobCarOrder(b.job);
  if(x&&y){if(x.year!==y.year)return y.year-x.year;if(x.seq!==y.seq)return y.seq-x.seq;}
@@ -59,14 +74,14 @@ function issueRowsFor(j){
  return [...byIssue.values()];
 }
 function entriesFor(j){return deptAssignments(j).flatMap(a=>assignmentIssues(a).map(issue=>({job:j,assignment:a,issue,chartStatus:a.chartStatus,department:a.department})));}
-function issueRowStatus(e){const types=[...e.statuses];return types.length===1?types[0]:'MIXED';}
+function issueRowStatus(e){return QAStatus.aggregate(QAStatus.scope(e.assignments,{department:selectedDept}));}
 
-function deptAssignments(j){const p=window.QA?.profile||{}, dept=norm(p.department), scope=$('dashScope').value;const role=String(p.role||'').toLowerCase();let rows=enabledAssignments(j);
+function deptAssignments(j){const p=window.QA?.profile||{}, dept=norm(p.department), scope=$('dashScope').value;const role=String(p.role||'').toLowerCase();let rows=QAWorkflow.visibleAssignments(p,j,enabledAssignments(j));
  // Origin department may track every receiver on its outgoing job.
  // Receiving departments see only their assignments unless also origin.
  if(role==='user'||role==='department_admin')rows=rows.filter(a=>norm(j.fromDepartment)===dept||norm(a.department)===dept);
  if(scope==='received')return rows.filter(a=>norm(a.department)===dept);
- if(scope==='mine'&&norm(j.createdBy)!==norm(p.user_id))return [];
+ if(scope==='mine'&&j.isRequester!==true)return [];
  if(scope==='department_sent'&&norm(j.fromDepartment)!==dept)return [];
  if(scope==='review')return rows.filter(a=>a.chartStatus==='WAITING_REVIEW');
  if(scope==='closed')return rows.filter(a=>a.chartStatus==='CLOSED');
@@ -112,37 +127,41 @@ function renderCharts(counts){
  const note=$('chartSelection');if(note)note.textContent='';
 }
 
+let issueReadStates=new Map();
+function readMarker(job,issue){
+ const item=issueReadStates.get(window.QAReadState?.key(job.jobId,issue.issue_id));
+ if(!item||typeof item.is_unread!=='boolean')return '<span class="read-state unknown" role="img" aria-label="ยังโหลดสถานะการอ่านไม่ได้" title="ยังโหลดสถานะการอ่านไม่ได้">—</span>';
+ const unread=item.is_unread;
+ const label=unread?'ยังไม่ได้เปิดดู':'เปิดดูแล้ว';
+ const path=unread?'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 6 9 7 9-7"/>':'<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V10Z"/><path d="m3 10 9 6 9-6M3 20l6-6m6 0 6 6"/>';
+ return '<span class="read-state '+(unread?'unread':'read')+'" role="img" aria-label="'+label+'" title="'+label+'"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+path+'</svg></span>';
+}
+async function refreshReadStates(){
+ const result=await window.QAReadState.load(all.map(j=>j.jobId));issueReadStates=result.states;
+}
+window.addEventListener('pageshow',e=>{if(e.persisted&&all.length)refreshReadStates().then(renderRows);});
+
 function renderRows(){
  const label=(selectedDept?selectedDept+' · ':'')+(selected==='all'?'ปัญหาแจ้งล่าสุด':(statuses.find(a=>a[0]===selected)?.[1]||'ปัญหาที่เลือก'));
  $('listTitle').textContent=label;
  const filtered=base.flatMap(j=>issueRowsFor(j)).filter(e=>(selected==='all'||e.statuses.has(selected))&&(!selectedDept||e.departments.includes(selectedDept)))
- .sort(compareLatestIssueRows);
+ .sort(compareReviewArrivals);
  const count=expanded?pageSize:6,pageCount=Math.max(1,Math.ceil(filtered.length/count));page=Math.max(0,Math.min(page,pageCount-1));
  const show=filtered.slice(page*count,(page+1)*count);
  $('jobRows').innerHTML=show.length?show.map(e=>{
-  const j=e.job,i=e.issue,st=issueRowStatus(e),status=st==='MIXED'?'หลายสถานะ':(statuses.find(a=>a[0]===st)?.[1]||'ไม่ระบุ');
-  const baseUrl='vnext-job.html?id='+encodeURIComponent(j.jobId);
+  const j=e.job,i=e.issue,st=issueRowStatus(e),status=QAStatus.label(st);
+  const baseUrl='vnext-job.html?id='+encodeURIComponent(j.jobId)+'&assignments='+encodeURIComponent(e.assignments.map(a=>a.assignmentId).join(','))+(selectedDept?'&department='+encodeURIComponent(selectedDept):'');
   const url=baseUrl.split('#')[0]+'#issue-'+encodeURIComponent(String(i.issue_id));
   const route=`${j.fromDepartment||'—'} → ${e.departments.join(', ')||'—'}`;
   const problem=`ปัญหา ${i.issue_number??'—'}: ${i.description||j.problemDetail||'—'}`;
   const issueCode=displayIssueCode(j,e.assignments[0],i);
   const profile=window.QA?.profile||{};
-  const pendingOwnDepartment=String(profile.role||'').toLowerCase()==='department_admin'&&e.assignments.some(a=>norm(a.department)===norm(profile.department)&&a.rawStatus==='IN_PROGRESS'&&Boolean(a.approvalRequestedAt));
-  const headBadge=pendingOwnDepartment?'<span class="head-approval-flag" title="งานของแผนกคุณรอหัวหน้าอนุมัติ">⌛ รอคุณอนุมัติ</span>':'';
-  // Final review belongs only to the department admin of the originating department.
-  // A receiver's department admin must not see this prompt for other origin departments.
-  const pendingRequesterReview=String(profile.role||'').toLowerCase()==='department_admin'
-    &&norm(j.fromDepartment)===norm(profile.department)
-    &&e.assignments.some(a=>a.rawStatus==='WAITING_REVIEW');
-  const requesterBadge=pendingRequesterReview?'<span class="head-approval-flag" title="งานที่แผนกคุณแจ้งออกไปรอตรวจรับ">⌛ รอคุณตรวจสอบ</span>':'';
-  const sentBack=e.assignments.some(a=>norm(a.department)===norm(profile.department)&&a.rawStatus==='IN_PROGRESS'&&Boolean(a.needsRework));
-  const reworkBadge=sentBack?'<span class="head-approval-flag" title="ผู้ตรวจรับส่งงานกลับมาแก้ไข">↩ ส่งกลับแก้ไข</span>':'';
-  // Only the issuing department sees an unrelated return; never show it as completed work.
-  const isOrigin=norm(j.fromDepartment)===norm(profile.department);
-  const unrelatedPending=isOrigin&&e.assignments.some(a=>Boolean(a.unrelatedRequestedAt)&&a.rawStatus!=='CANCELLED');
-  const unrelatedConfirmed=isOrigin&&e.assignments.some(a=>a.rawStatus==='CANCELLED'&&Boolean(a.unrelatedDecidedAt));
-  const unrelatedBadge=unrelatedPending?'<span class="head-approval-flag" title="แผนกผู้รับเรื่องแจ้งว่าไม่เกี่ยวข้อง รอฝ่ายผู้แจ้งพิจารณา">↩ งานไม่เกี่ยวข้อง</span>':unrelatedConfirmed?'<span class="head-approval-flag" title="ฝ่ายผู้แจ้งยืนยันว่าปัญหาไม่เกี่ยวข้องกับแผนกนี้แล้ว">↩ งานไม่เกี่ยวข้อง (ยืนยันแล้ว)</span>':'';
-  return `<a class="job-row" href="${safe(url)}" title="เปิดปัญหา ${safe(issueCode)}"><span title="${safe(issueCode)}"><b>${safe(issueCode)}</b></span><span title="${safe(j.customerName)}">${safe(j.customerName||'ไม่ระบุ')}</span><span title="${safe(j.serialNo)}">${safe(j.serialNo||'—')}</span><span class="route" title="${safe(route)}">${safe(route)}</span><span title="${safe(problem)}">${safe(problem)}</span><span><i class="pill ${safe(st)}">${safe(status)}</i>${headBadge}${requesterBadge}${reworkBadge}${unrelatedBadge}</span><span title="${safe(timeText(j))}">${safe(timeText(j))}</span></a>`;
+  const noticePaths={accept:'<path d="M4 4h16v16H4zM8 8h8M8 12h5"/>',head:'<path d="m5 12 4 4L19 6"/>',review:'<circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/>',work:'<path d="m5 19 3-7L18 2l4 4-10 10-7 3Z"/>',rework:'<path d="M8 5 3 10l5 5M3 10h11a6 6 0 0 1 0 12"/>',unrelated:'<circle cx="12" cy="12" r="9"/><path d="M12 7v6m0 4h.01"/>'};
+  const notices=QAWorkflow.notices(profile,j,e.assignments).map(n=>{
+   const type=n.code.startsWith('unrelated')?'unrelated':n.code.startsWith('rework')?'rework':n.code.startsWith('head')?'head':n.code;
+   return '<span class="workflow-notice '+(n.action?'action-required':'informative')+'" data-notice="'+safe(n.code)+'"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(noticePaths[type]||noticePaths.work)+'</svg>'+safe(n.text)+'</span>';
+  }).join('');
+  return `<a class="job-row" href="${safe(url)}" title="เปิดปัญหา ${safe(issueCode)}"><span class="read-column">${readMarker(j,i)}</span><span title="${safe(issueCode)}"><b>${safe(issueCode)}</b></span><span title="${safe(j.customerName)}">${safe(j.customerName||'ไม่ระบุ')}</span><span title="${safe(j.serialNo)}">${safe(j.serialNo||'—')}</span><span class="route" title="${safe(route)}">${safe(route)}</span><span title="${safe(problem)}">${safe(problem)}</span><span><i class="pill ${safe(st)}">${safe(status)}</i>${notices}</span><span title="${safe(timeText(j))}">${safe(timeText(j))}</span></a>`;
  }).join(''):'<div class="empty">ไม่พบรายการปัญหา</div>';
  $('viewAll').textContent=expanded?'แสดง 6 ปัญหาล่าสุด':'ดูทั้งหมด ('+filtered.length+')';$('pagination').hidden=!expanded||filtered.length<=pageSize;$('prevPage').disabled=page===0;$('nextPage').disabled=page>=pageCount-1;$('pageInfo').textContent=`หน้า ${page+1} / ${pageCount}`;
  document.querySelectorAll('.stat').forEach(el=>el.classList.toggle('active',el.dataset.status===selected));
@@ -161,7 +180,7 @@ async function loadAssignments(jobs){
    // Stable issue code is built from qa_issue_items.issue_number in qa_vnext_job_detail.
    // Dashboard does not require a second optional RPC merely to render a list.
    j.issueCodes=new Map();
-   j.departmentAssignments=data.assignments.map(a=>({department:String(a.department_code||'').trim(),assignmentId:String(a.assignment_id||''),rawStatus:String(a.status||'').toUpperCase(),approvalRequestedAt:a.approval_requested_at||null,unrelatedRequestedAt:a.unrelated_requested_at||null,unrelatedDecidedAt:a.unrelated_decided_at||null,needsRework:Boolean(a.needs_rework),chartStatus:groupStatus(a.status),issues:Array.isArray(a.issues)?a.issues:[]}));
+   j.departmentAssignments=data.assignments.map(a=>({department:String(a.department_code||'').trim(),assignmentId:String(a.assignment_id||''),metadataLoaded:false,rawStatus:String(a.status||'').toUpperCase(),approvedAt:a.approved_at||null,reviewRound:Number(a.review_round)||null,approvalRequestedAt:a.approval_requested_at||null,unrelatedRequestedAt:a.unrelated_requested_at||null,unrelatedDecidedAt:a.unrelated_decided_at||null,needsRework:Boolean(a.needs_rework),chartStatus:groupStatus(a.status),issues:Array.isArray(a.issues)?a.issues:[]}));
   }
  });await Promise.all(workers);
 }
@@ -173,10 +192,37 @@ function dateRange(){const kind=$('filter').value;
  return {from:null,to:null};}
 async function refreshSummary(){const seq=++summaryRequest;const dates=dateRange();
  try{const {data,error}=await window.QA.client.rpc('qa_dashboard_issue_summary',{
-  p_scope:['user','department_admin'].includes(String(window.QA?.profile?.role||'').toLowerCase())?'all':$('dashScope').value,p_date_from:dates.from,p_date_to:dates.to});
+  p_scope:$('dashScope').value,p_date_from:dates.from,p_date_to:dates.to});
   if(error)throw error;if(!data||!Array.isArray(data.departments))throw new Error('รูปแบบข้อมูลสถิติไม่ถูกต้อง');
   if(seq!==summaryRequest)return;globalAggregate=data;render();
  }catch(e){if(seq!==summaryRequest)return;globalAggregate=null;render();$('feedback').textContent='โหลดสถิติรวมไม่สำเร็จ: '+String(e?.message||e);}}
+async function loadRoleMetadata(jobs){
+ const pending=jobs.slice(),profile=window.QA.profile;let failures=0;
+ const workers=Array.from({length:Math.min(4,pending.length)},async()=>{
+  while(pending.length){const job=pending.shift();try{
+   const result=await QA.client.rpc('qa_vnext_job_detail',{p_job_id:job.jobId});
+   if(result.error||!result.data||!Array.isArray(result.data.assignments)){failures++;continue;}
+   const data=result.data;job.isRequester=data.is_requester===true;
+   for(const a of job.departmentAssignments){const source=data.assignments.find(x=>String(x.assignment_id)===a.assignmentId);if(!source)continue;
+    a.rawStatus=String(source.status||a.rawStatus).toUpperCase();a.chartStatus=groupStatus(a.rawStatus);
+    a.approvedAt=source.approved_at||null;a.approvalRequestedAt=source.approval_requested_at||null;a.responsibleUser=source.responsible_user||null;
+    a.unrelatedRequestedAt=source.unrelated_requested_at||null;
+    a.metadataLoaded=true;
+   }
+   // RETURN is recorded in audit history, not in the assignment's rework flag.
+   // Read only for receiving departments that may access this internal history.
+   if(['user','department_admin'].includes(profile.role)&&job.departmentAssignments.some(a=>norm(a.department)===norm(profile.department)&&a.rawStatus==='IN_PROGRESS'&&!a.approvalRequestedAt&&!a.needsRework)){
+    const history=await QA.client.rpc('qa_v38_job_history',{p_job_id:job.jobId});
+    if(!history.error&&Array.isArray(history.data))for(const a of job.departmentAssignments){
+     if(norm(a.department)!==norm(profile.department))continue;
+     const events=history.data.filter(e=>norm(e.department_code)===norm(a.department)&&e.action!=='SAVE_DRAFT').sort((x,y)=>Date.parse(y.created_at)-Date.parse(x.created_at));
+     a.returnedFromHead=events[0]?.action==='RETURN';
+    }
+   }
+  }catch{failures++;}}
+ });await Promise.all(workers);return failures;
+}
+
 async function load(){
  $('feedback').textContent='กำลังโหลดสถิติรวมและรายการงานที่มีสิทธิ์ดู...';
  globalAggregate=null;
@@ -198,14 +244,15 @@ async function load(){
      jobId:String(r.job_id||''),carCode:String(r.car_code||r.job_id||''),
      customerName:String(r.customer_name||''),country:String(r.country||''),
      serialNo:String(r.serial_no||''),fromDepartment:String(r.from_department||''),
-     createdDateTime:String(r.created_at||''),issueCodes:new Map(),
+     createdDateTime:String(r.created_at||''),createdBy:r.created_by||'',isRequester:r.is_requester===true,issueCodes:new Map(),
      departmentAssignments:(r.assignments||[]).filter(a=>!localRole||norm(r.from_department)===department||norm(a.department_code)===department)
        .map(a=>({department:String(a.department_code||''),assignmentId:String(a.assignment_id||''),
-          rawStatus:String(a.status||'').toUpperCase(),approvalRequestedAt:a.approval_requested_at||null,unrelatedRequestedAt:a.unrelated_requested_at||null,unrelatedDecidedAt:a.unrelated_decided_at||null,needsRework:Boolean(a.needs_rework),
+          metadataLoaded:false,rawStatus:String(a.status||'').toUpperCase(),approvedAt:a.approved_at||null,reviewRound:Number(a.review_round)||null,approvalRequestedAt:a.approval_requested_at||null,unrelatedRequestedAt:a.unrelated_requested_at||null,unrelatedDecidedAt:a.unrelated_decided_at||null,needsRework:Boolean(a.needs_rework),
           chartStatus:groupStatus(a.status),issues:Array.isArray(a.issues)?a.issues:[]}))
    })).filter(j=>j.departmentAssignments.length>0).sort((a,b)=>dt(b)-dt(a));
+   const [reviewLoadFailures]=await Promise.all([loadRoleMetadata(all),refreshReadStates()]);
    page=0;render();
-   $('feedback').textContent=`รายการรับเข้าและแจ้งออกที่มีสิทธิ์เข้าถึง ${all.reduce((n,j)=>n+issueRowsFor(j).length,0)} ปัญหา`;
+   $('feedback').textContent=`รายการรับเข้าและแจ้งออกที่มีสิทธิ์เข้าถึง ${all.reduce((n,j)=>n+issueRowsFor(j).length,0)} ปัญหา`+(reviewLoadFailures?' · โหลดสิทธิ์หรือรายละเอียดสถานะบางรายการไม่สำเร็จ โปรดเปิดใบงานตรวจสอบ':'');
  }catch(e){all=[];base=[];receiverError=String(e?.message||e);render();
    $('feedback').textContent='โหลดรายการที่มีสิทธิ์ดูไม่สำเร็จ: '+receiverError;
  }
