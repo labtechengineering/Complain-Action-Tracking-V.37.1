@@ -160,7 +160,7 @@ function renderRows(){
   const baseUrl='vnext-job.html?id='+encodeURIComponent(j.jobId)+'&assignments='+encodeURIComponent(e.assignments.map(a=>a.assignmentId).join(','))+(selectedDept?'&department='+encodeURIComponent(selectedDept):'');
   const url=baseUrl.split('#')[0]+'#issue-'+encodeURIComponent(String(i.issue_id));
   const route=`${j.fromDepartment||'—'} → ${e.departments.join(', ')||'—'}`;
-  const problem=`ปัญหา ${i.issue_number??'—'}: ${i.description||j.problemDetail||'—'}`;
+  const problem=i.description||j.problemDetail||'—';
   const issueCode=displayIssueCode(j,e.assignments[0],i);
   const profile=window.QA?.profile||{};
   const noticePaths={accept:'<path d="M4 4h16v16H4zM8 8h8M8 12h5"/>',head:'<path d="m5 12 4 4L19 6"/>',review:'<circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/>',work:'<path d="m5 19 3-7L18 2l4 4-10 10-7 3Z"/>',rework:'<path d="M8 5 3 10l5 5M3 10h11a6 6 0 0 1 0 12"/>',unrelated:'<circle cx="12" cy="12" r="9"/><path d="M12 7v6m0 4h.01"/>'};
