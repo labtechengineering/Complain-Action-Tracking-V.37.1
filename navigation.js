@@ -14,8 +14,8 @@ function buildAppNavHtml_(baseUrl,activePage){
   const links=[];
   const add=(page,label,icon,show=true)=>{if(!show)return;links.push('<a class="qa-side-link '+(activePage===page?'active':'')+'" href="'+htmlEscapeServer_(QA.pageUrl(page))+'"><span class="qa-side-icon" aria-hidden="true">'+icon+'</span><span>'+label+'</span></a>');};
   add('dashboard','หน้าแรก',icon('dashboard'));
-  add('customer','ข้อมูลลูกค้า',icon('customer'));
   add('create','แจ้งงาน',icon('create'),role==='user'||role==='department_admin'||isSystem);
+  add('customer','ข้อมูลลูกค้า',icon('customer'));
   add('profile','Profile',icon('profile'));
   add('settings','Settings',icon('settings'),isSystem);
   return `<style>

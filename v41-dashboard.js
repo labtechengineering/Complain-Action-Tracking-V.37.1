@@ -75,6 +75,9 @@ function issueRowsFor(j){
 }
 function entriesFor(j){return deptAssignments(j).flatMap(a=>assignmentIssues(a).map(issue=>({job:j,assignment:a,issue,chartStatus:a.chartStatus,department:a.department})));}
 function issueRowStatus(e){return QAStatus.aggregate(QAStatus.scope(e.assignments,{department:selectedDept}));}
+// Match department and status on the SAME visible assignment. A shared issue's
+// status in another department must not satisfy the selected bar segment.
+function rowMatchesChart(e){return e.assignments.some(a=>(!selectedDept||norm(a.department)===norm(selectedDept))&&(selected==='all'||a.chartStatus===selected));}
 
 function deptAssignments(j){const p=window.QA?.profile||{}, dept=norm(p.department), scope=$('dashScope').value;const role=String(p.role||'').toLowerCase();let rows=QAWorkflow.visibleAssignments(p,j,enabledAssignments(j));
  // Origin department may track every receiver on its outgoing job.
@@ -102,6 +105,10 @@ function render(){base=all.filter(j=>periodMatch(j)&&searchMatch(j)&&deptAssignm
 function matchingAssignments(j){return deptAssignments(j).filter(a=>(selected==='all'||a.chartStatus===selected)&&(!selectedDept||a.department===selectedDept));}
 function listStatus(j,matching){const allInScope=deptAssignments(j);const relevant=selected==='all'&&!selectedDept?allInScope:matching;const types=[...new Set(relevant.map(a=>a.chartStatus).filter(Boolean))];if(types.length===1)return types[0];return 'MIXED';}
 function listStatusText(j,matching){const st=listStatus(j,matching);if(st==='MIXED')return 'หลายสถานะ';return statuses.find(a=>a[0]===st)?.[1]||'ไม่ระบุ';}
+function selectStatusCard(status){
+ selected=status;selectedDept='';expanded=false;page=0;
+ renderCharts(selectedGlobalCounts());renderRows();
+}
 function toggleChartFilter(status='',dept=''){
  selected=(selected===status&&selectedDept===dept)?'all':(status||'all');
  selectedDept=(selected==='all'&&!dept)?'':dept;
@@ -144,7 +151,7 @@ window.addEventListener('pageshow',e=>{if(e.persisted&&all.length)refreshReadSta
 function renderRows(){
  const label=(selectedDept?selectedDept+' · ':'')+(selected==='all'?'ปัญหาแจ้งล่าสุด':(statuses.find(a=>a[0]===selected)?.[1]||'ปัญหาที่เลือก'));
  $('listTitle').textContent=label;
- const filtered=base.flatMap(j=>issueRowsFor(j)).filter(e=>(selected==='all'||e.statuses.has(selected))&&(!selectedDept||e.departments.includes(selectedDept)))
+ const filtered=base.flatMap(j=>issueRowsFor(j)).filter(rowMatchesChart)
  .sort(compareReviewArrivals);
  const count=expanded?pageSize:6,pageCount=Math.max(1,Math.ceil(filtered.length/count));page=Math.max(0,Math.min(page,pageCount-1));
  const show=filtered.slice(page*count,(page+1)*count);
@@ -168,7 +175,7 @@ function renderRows(){
 }
 
 function updatePeriod(){const v=$('filter').value;for(const k of ['day','week','month','year'])$(k).hidden=k!==v;page=0;render()}
-function init(){const p=window.QA?.profile||{};if(['user','department_admin'].includes(String(p.role||'').toLowerCase())){const scope=$('dashScope');scope.value='all';scope.title='งานที่แผนกคุณรับเข้าและแจ้งออก';}$('welcome').textContent=`สวัสดี ${p.display_name||p.email||'ผู้ใช้งาน'} · ${p.department||'ระบบติดตามงาน'}`;const now=new Date();const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);const v=Object.fromEntries(parts.map(x=>[x.type,x.value]));const day=`${v.year}-${v.month}-${v.day}`;$('day').value=day;$('month').value=day.slice(0,7);$('year').value=v.year;$('week').value=weekKey(day);$('filter').addEventListener('change',()=>{updatePeriod();refreshSummary();});document.querySelector('.charts').addEventListener('click',ev=>{const target=ev.target.closest('[data-chart-status],[data-chart-dept]');if(target){toggleChartFilter(target.dataset.chartStatus||'',target.dataset.chartDept||'');return;}const ring=ev.target.closest('#donut');if(!ring||ev.target.closest('.donut-center'))return;const rect=ring.getBoundingClientRect(),cx=rect.left+rect.width/2,cy=rect.top+rect.height/2,dx=ev.clientX-cx,dy=ev.clientY-cy,dist=Math.hypot(dx,dy);if(dist<rect.width*.32||dist>rect.width*.52)return;const angle=(Math.atan2(dx,-dy)*180/Math.PI+360)%360;const part=JSON.parse(ring.dataset.parts||'[]').find(p=>angle>=p.from*3.6&&angle<p.to*3.6);if(part)toggleChartFilter(part.s,'');});['day','week','month','year','dashScope'].forEach(id=>$(id).addEventListener('change',()=>{page=0;render();refreshSummary()}));$('dashSearch').addEventListener('input',()=>{page=0;render()});$('refresh').addEventListener('click',load);document.querySelectorAll('.stat').forEach(el=>el.addEventListener('click',()=>{selected=el.dataset.status;selectedDept='';expanded=false;page=0;renderCharts(recount(base));renderRows()}));$('viewAll').addEventListener('click',()=>{expanded=!expanded;page=0;renderRows()});$('prevPage').addEventListener('click',()=>{page--;renderRows()});$('nextPage').addEventListener('click',()=>{page++;renderRows()});load()}
+function init(){const p=window.QA?.profile||{};if(['user','department_admin'].includes(String(p.role||'').toLowerCase())){const scope=$('dashScope');scope.value='all';scope.title='งานที่แผนกคุณรับเข้าและแจ้งออก';}$('welcome').textContent=`สวัสดี ${p.display_name||p.email||'ผู้ใช้งาน'} · ${p.department||'ระบบติดตามงาน'}`;const now=new Date();const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);const v=Object.fromEntries(parts.map(x=>[x.type,x.value]));const day=`${v.year}-${v.month}-${v.day}`;$('day').value=day;$('month').value=day.slice(0,7);$('year').value=v.year;$('week').value=weekKey(day);$('filter').addEventListener('change',()=>{updatePeriod();refreshSummary();});document.querySelector('.charts').addEventListener('click',ev=>{const target=ev.target.closest('[data-chart-status],[data-chart-dept]');if(target){toggleChartFilter(target.dataset.chartStatus||'',target.dataset.chartDept||'');return;}const ring=ev.target.closest('#donut');if(!ring||ev.target.closest('.donut-center'))return;const rect=ring.getBoundingClientRect(),cx=rect.left+rect.width/2,cy=rect.top+rect.height/2,dx=ev.clientX-cx,dy=ev.clientY-cy,dist=Math.hypot(dx,dy);if(dist<rect.width*.32||dist>rect.width*.52)return;const angle=(Math.atan2(dx,-dy)*180/Math.PI+360)%360;const part=JSON.parse(ring.dataset.parts||'[]').find(p=>angle>=p.from*3.6&&angle<p.to*3.6);if(part)toggleChartFilter(part.s,'');});['day','week','month','year','dashScope'].forEach(id=>$(id).addEventListener('change',()=>{page=0;render();refreshSummary()}));$('dashSearch').addEventListener('input',()=>{page=0;render()});$('refresh').addEventListener('click',load);document.querySelectorAll('.stat').forEach(el=>el.addEventListener('click',()=>selectStatusCard(el.dataset.status)));$('viewAll').addEventListener('click',()=>{expanded=!expanded;page=0;renderRows()});$('prevPage').addEventListener('click',()=>{page--;renderRows()});$('nextPage').addEventListener('click',()=>{page++;renderRows()});load()}
 // The same permission-checked RPC used by the detail page supplies assignment statuses.
 // Deliberately fail the Dashboard load if any assignment detail fails; never show false zeros.
 async function loadAssignments(jobs){
