@@ -62,14 +62,24 @@ function captureDetailFocus(){
 }
 function guideDetail(context={}){
  const all=detail?.assignments||[],rights=a=>QAWorkflow.permissions(QA.profile,detail,a,{legacyLocked:a._legacyLocked===true});
+ const actionable=all.filter(a=>QAWorkflow.notices(QA.profile,detail,[a]).some(n=>n.action));
  const pending=all.filter(a=>{const q=rights(a);return q.canResolveUnrelated||q.canFinalReview||q.canApprove;});
  const hashIssue=QAStatus.issueFromHash(location.hash);
+ const initial=!context.action&&!context.navigate&&!context.issueId&&!context.assignmentId;
+ // A read-only visit starts at the status flow. A URL department/hash alone
+ // must not turn somebody else's update into an action for this user.
+ if(initial&&!actionable.length){
+  document.querySelectorAll('.workflow-focus').forEach(n=>{n.classList.remove('workflow-focus');n.querySelector(':scope > .workflow-focus-hint')?.remove();});
+  const tracker=$('jobTracker');tracker.tabIndex=-1;tracker.focus?.({preventScroll:true});
+  tracker.scrollIntoView?.({behavior:'auto',block:'start'});return;
+ }
+ const candidates=initial?actionable:all;
  let issueId=context.issueId||hashIssue,assignment=all.find(a=>String(a.assignment_id)===String(context.assignmentId));
  // After finishing a review, lead to the next pending decision when there is one.
  if(['APPROVE','RETURN','REQUESTER_PASS','UNRELATED_CONFIRM'].includes(context.action)&&pending.length){assignment=pending[0];issueId=assignment.issues?.[0]?.issue_id;}
- if(!assignment&&issueId)assignment=all.find(a=>(a.issues||[]).some(i=>String(i.issue_id)===String(issueId))&&(!trackerDepartment||a.department_code===trackerDepartment));
- if(!assignment&&trackerDepartment)assignment=all.find(a=>a.department_code===trackerDepartment);
- if(!assignment)assignment=pending[0]||all.find(a=>rights(a).canEdit)||all.find(a=>rights(a).canAccept);
+ if(!assignment&&issueId)assignment=candidates.find(a=>(a.issues||[]).some(i=>String(i.issue_id)===String(issueId))&&(!trackerDepartment||a.department_code===trackerDepartment));
+ if(!assignment&&trackerDepartment)assignment=candidates.find(a=>a.department_code===trackerDepartment);
+ if(!assignment)assignment=pending[0]||candidates.find(a=>rights(a).canEdit)||candidates.find(a=>rights(a).canAccept);
  if(!assignment)return;
  const folds=[...document.querySelectorAll('.issue-disclosure')];
  const applies=f=>f.dataset.assignmentIds.split(',').includes(String(assignment.assignment_id));
@@ -378,11 +388,11 @@ function renderTracker(d){
   selectedDepartment=selectedDepartment===a.department_code?'':a.department_code;
   trackerDepartment=selectedDepartment;updateTracker();
   if(!selectedDepartment)return;
-  guideDetail({assignmentId:a.assignment_id,issueId});
+  guideDetail({assignmentId:a.assignment_id,issueId,navigate:true});
  };chips.append(b)});
  updateTracker();
 }
-window.addEventListener('hashchange',()=>{if(detail){renderTracker(detail);guideDetail({issueId:QAStatus.issueFromHash(location.hash)});}});
+window.addEventListener('hashchange',()=>{if(detail){renderTracker(detail);guideDetail({issueId:QAStatus.issueFromHash(location.hash),navigate:true});}});
 
 async function resolveUnrelatedReceiver(a,root,button){
  if(!QAWorkflow.permissions(QA.profile,detail,a).canResolveUnrelated){setNote('เฉพาะหัวหน้าฝ่ายผู้แจ้งหรือ System Admin เท่านั้นที่พิจารณาได้',true);return;}
