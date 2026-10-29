@@ -100,7 +100,7 @@
   });
  }
   updateFiles();box.querySelector('.vn-remove')?.addEventListener('click',()=>{save();problems.splice(problems.indexOf(p),1);render();});host.append(box);
- });}
+ });window.QA?.applyPermissions?.();}
  $('vnAdd').onclick=()=>{save();problems.push(create());render();};
  function collect(){save();if(!['PRODUCTION','AFTERSALES'].includes($('vnSource').value))throw new Error('กรุณาเลือกประเภทงาน Production หรือ Aftersales ก่อนแจ้งงาน');if(!receivers.some(x=>x.enabled))throw new Error('ยังไม่ได้กำหนดฝ่ายรับเรื่องใน Settings');
  const issues=problems.map((p,i)=>{if(!p.category||!p.description.trim()||p.departments.length===0)throw new Error(`ปัญหา ${i+1}: กรอกประเภท รายละเอียด และฝ่ายรับเรื่องให้ครบ`);

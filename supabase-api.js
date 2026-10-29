@@ -21,6 +21,7 @@
   let readyResolve, readyReject;
   const ready = new Promise((resolve,reject) => {readyResolve=resolve;readyReject=reject;});
   ready.catch(() => {});
+  QA.whenReady = () => ready;
   // Resolve links from this script's folder, never from the domain root.
   // This works both at / and at /repository-name/ on GitHub Pages.
   const appBase = new URL('.', document.currentScript?.src || location.href);

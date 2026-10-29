@@ -265,5 +265,5 @@ async function load(){
  }
 }
 
-if(!window.QA?.run){document.addEventListener('DOMContentLoaded',()=>{$('feedback').textContent='ไม่พบระบบ API กรุณาตรวจสอบ config.js และ supabase-api.js'});}else document.addEventListener('DOMContentLoaded',()=>{window.QA.run.withSuccessHandler(init).withFailureHandler(e=>{$('feedback').textContent=e?.message||String(e)}).getSettings()});
+if(!window.QA?.run){document.addEventListener('DOMContentLoaded',()=>{$('feedback').textContent='ไม่พบระบบ API กรุณาตรวจสอบ config.js และ supabase-api.js'});}else document.addEventListener('DOMContentLoaded',()=>{window.QA.whenReady().then(init).catch(e=>{$('feedback').textContent=e?.message||String(e)})});
 })();
