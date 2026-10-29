@@ -3,3 +3,7 @@
 .issue-source-before-work>.received-issues{position:relative}.source-department-label{display:block;text-align:right;color:#334155;font-size:14px;margin:8px 0}.source-department-label+h3{margin-top:0}.unaccepted-actions{margin-top:12px}.unaccepted-actions .department-action-bar:empty{display:none}
 
 .issue-card>.source-department-label{float:right;margin:0 0 10px 14px;font-size:15px}.issue-card:after{content:"";display:block;clear:both}
+
+.workflow-focus{outline:2px solid #3b82f6!important;outline-offset:5px;border-radius:9px;scroll-margin-top:28px}.workflow-focus-hint{display:block;margin:0 0 16px;padding:10px 13px;background:#eff6ff;border-left:3px solid #3b82f6;color:#1e40af;font-size:13px;font-weight:600;line-height:1.7}.workflow-focus:focus{box-shadow:none}@media print{.workflow-focus{outline:none!important}.workflow-focus-hint{display:none}}
+
+.department-action-bar.workflow-focus{padding:12px}.department-action-bar>.workflow-focus-hint{flex-basis:100%;margin:0 0 10px;width:100%}
