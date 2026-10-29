@@ -39,8 +39,8 @@ function allowed(action,p,j,a,options){const q=permissions(p,j,a,options);return
 function notices(p,j,assignments){
  const notices=new Map(),add=(code,text,action=false)=>notices.set(code,{code,text,action});
  for(const a of visibleAssignments(p,j,assignments)){
-  if(a.metadataLoaded===false)continue;
-  const q=permissions(p,j,a),s=state(a),pending=requested(a)&&s==='IN_PROGRESS'&&!approved(a);
+  if(a.metadataLoaded===false&&!approved(a)&&!requested(a)&&!value(a,'unrelated_requested_at','unrelatedRequestedAt'))continue;
+  const q=permissions(p,j,a),s=state(a);if(s==='CANCELLED')continue;const pending=requested(a)&&s==='IN_PROGRESS'&&!approved(a);
   if(q.canAccept&&!q.system)add('accept','รอคุณรับงาน',true);
   if(q.canApprove)add('head','รอคุณอนุมัติ',true);
   else if(pending&&q.own)add('head_pending','รอหัวหน้าอนุมัติ');
@@ -50,10 +50,11 @@ function notices(p,j,assignments){
   if(rework||returned){if(q.own)add('rework',returned?'หัวหน้าส่งกลับแก้ไข':'ส่งกลับแก้ไข',q.responsible);else if(q.origin)add('rework_wait','รอแผนกแก้ไข');}
   else if(q.canEdit&&!q.system)add('work','รอคุณดำเนินการ',true);
   const unrelated=!!value(a,'unrelated_requested_at','unrelatedRequestedAt');
-  if(unrelated&&s!=='CANCELLED'){if(q.canResolveUnrelated)add('unrelated','รอคุณพิจารณาแผนก',true);else if(q.origin||q.own||q.system)add('unrelated_wait','รอหัวหน้าฝ่ายผู้แจ้งพิจารณา');}
-  if(s==='CANCELLED'&&value(a,'unrelated_decided_at','unrelatedDecidedAt'))add('unrelated_done','ไม่เกี่ยวข้อง (ยืนยันแล้ว)');
+  if(unrelated&&s!=='CANCELLED'){if(q.canResolveUnrelated)add('review','รอคุณตรวจสอบ',true);else if(q.origin||q.own||q.system)add('unrelated_wait','รอหัวหน้าฝ่ายผู้แจ้งพิจารณา');}
+
  }
  return [...notices.values()];
 }
-window.QAWorkflow={norm,state,visibleAssignments,permissions,allowed,notices};
+function reviewAttention(p,j,a){const q=permissions(p,j,a);return q.canFinalReview||q.canResolveUnrelated?'รอคุณตรวจสอบ':q.canApprove?'รอคุณอนุมัติ':'';}
+window.QAWorkflow={norm,state,visibleAssignments,permissions,allowed,notices,reviewAttention};
 })();

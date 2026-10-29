@@ -1,14 +1,14 @@
 (()=>{'use strict';const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const jobId=new URLSearchParams(location.search).get('id')||new URLSearchParams(location.search).get('job');let detail,media=[];let departmentHighlightTimer;let trackerDepartment=new URLSearchParams(location.search).get('department')||'';let categoryNames=new Map();let receivingDepartments=[];let completedRounds=new Map();
+const jobId=new URLSearchParams(location.search).get('id')||new URLSearchParams(location.search).get('job');let detail,media=[];const responseQueues=new Map(),responseDrafts=new Map();let activePickers=[];let mediaRoundReady=false;let departmentHighlightTimer;let trackerDepartment=new URLSearchParams(location.search).get('department')||'';let categoryNames=new Map();let receivingDepartments=[];let completedRounds=new Map();
 async function loadCategoryNames(){const {data,error}=await QA.client.from('qa_settings').select('code,name').eq('setting_type','CATEGORY').range(0,999);if(error)throw error;categoryNames=new Map((data||[]).map(x=>[String(x.code),String(x.name||'')]));}
 function categoryName(code){const key=String(code||'');return categoryNames.get(key)||'ไม่พบชื่อประเภทปัญหา';}
 const setNote=(s,bad=false)=>{$('feedback').textContent=s;$('feedback').style.color=bad?'#b91c1c':'#166534';};
 async function rpc(name,args){const {data,error}=await QA.client.rpc(name,args);if(error)throw error;return data;}
 function label(s){return QAStatus.label(QAStatus.canonical(s));}
 async function getUrl(path,download=false){const opts=download?{download:true}:undefined;const {data,error}=await QA.client.storage.from('qa-vnext-media').createSignedUrl(path,900,opts);if(error)throw error;return data.signedUrl;}
-async function mediaFor(issueIds,assignmentId,canEdit=false){const permitted=media.filter(m=>(m.scope==='ISSUE'&&issueIds.includes(m.issue_id))||(m.scope==='ASSIGNMENT'&&m.assignment_id===assignmentId));
+async function mediaFor(issueIds,assignmentId,canEdit=false,round=null){const permitted=media.filter(m=>(m.scope==='ISSUE'&&issueIds.includes(m.issue_id))||(m.scope==='ASSIGNMENT'&&m.assignment_id===assignmentId&&(round===null||Number(m.response_round||1)===Number(round))));
  if(!permitted.length)return '<p class="muted">ไม่มีไฟล์แนบ</p>';
- const cards=await Promise.all(permitted.map(async m=>{try{const view=await getUrl(m.storage_path),download=await getUrl(m.storage_path,true);
+ const cards=await Promise.all(permitted.map(async m=>{try{const view=await getUrl(m.storage_path),download=await getUrl(m.storage_path,true).catch(()=>view);
  const preview=m.kind==='IMAGE'?`<img src="${esc(view)}" alt="ภาพประกอบ">`:`<video controls preload="metadata" src="${esc(view)}"></video>`;
  const note=canEdit?`<label>หมายเหตุ<textarea class="media-note-input" data-attachment="${esc(m.attachment_id)}" maxlength="2000">${esc(m.note||'')}</textarea></label><button type="button" class="media-note-save" data-attachment="${esc(m.attachment_id)}">บันทึกหมายเหตุ</button>`:`<p class="media-note">${esc(m.note||'')}</p>`;
  return `<div class="media-item">${preview}${note}<a href="${esc(download)}" download target="_blank" rel="noopener">ดาวน์โหลด</a></div>`;
@@ -53,8 +53,8 @@ async function notifyReceiverChange(ev){
  }catch(e){setNote('เปลี่ยนแผนกใน Supabase สำเร็จแล้ว แต่ LINE ยังไม่สำเร็จ: '+e.message,true);receiverChangeRetryButton(ev);}
 }
 
-async function render(){clearTimeout(departmentHighlightTimer);if(!jobId){setNote('ไม่พบหมายเลขงาน',true);return;}
- try{await loadCategoryNames();detail=await rpc('qa_vnext_job_detail',{p_job_id:jobId});if(QA.profile?.role==='viewer')detail.can_manage_issues=false;detail.assignments=QAWorkflow.visibleAssignments(QA.profile,detail,detail.assignments||[]);media=await rpc('qa_vnext_media_list',{p_job_id:jobId});
+async function render(){activePickers.forEach(p=>p.destroy());activePickers=[];clearTimeout(departmentHighlightTimer);if(!jobId){setNote('ไม่พบหมายเลขงาน',true);return;}
+ try{await loadCategoryNames();detail=await rpc('qa_vnext_job_detail',{p_job_id:jobId});if(QA.profile?.role==='viewer')detail.can_manage_issues=false;detail.assignments=QAWorkflow.visibleAssignments(QA.profile,detail,detail.assignments||[]);try{media=await rpc('qa_v52_media_list',{p_job_id:jobId});mediaRoundReady=true;}catch(error){if(!['PGRST202','42883'].includes(String(error.code||'')))throw error;media=await rpc('qa_vnext_media_list',{p_job_id:jobId});mediaRoundReady=false;}
  // Correction history is supplementary. An error here must never hide a job the user can otherwise read.
  let archived=[];let roundLoadWarning='';
  try{archived=await rpc('qa_v51_assignment_rounds',{p_job_id:jobId});}
@@ -174,14 +174,14 @@ async function render(){clearTimeout(departmentHighlightTimer);if(!jobId){setNot
  // may still reside in the current assignment. Preserve it until audited repair SQL runs.
  const hasLegacyUnarchivedFailure=a.status==='IN_PROGRESS'&&!!String(a.requester_review_reason||'').trim()&&!a.approval_requested_at&&priorRounds.length===0;
  a._legacyLocked=hasLegacyUnarchivedFailure;
- const canEditCurrent=responseEditable&&!hasLegacyUnarchivedFailure;
+ const canEditCurrent=responseEditable&&!hasLegacyUnarchivedFailure&&!(priorRounds.length&&!mediaRoundReady);
  const afterRejection=priorRounds.length>0&&a.status==='IN_PROGRESS'&&!a.approval_requested_at;
- const earlier=priorRounds.map(r=>`<section class="response-prior-round"><h3>บันทึกการแก้ไขครั้งที่ ${esc(r.round_no)} (อ่านอย่างเดียว)</h3><p class="muted">ผู้ตรวจรับไม่ผ่าน: ${esc(r.rejection_reason||'-')}</p><p><b>รายละเอียดปัญหา:</b> ${esc(r.receiver_problem_detail||'-')}</p><p><b>วิเคราะห์สาเหตุ:</b> ${esc(r.problem_analysis||'-')}</p><p><b>การแก้ไข:</b> ${esc(r.corrective_action||'-')}</p><p><b>กำหนดเสร็จ:</b> ${esc(r.due_date||'-')}</p></section>`).join('');
+ const earlier=(await Promise.all(priorRounds.map(async r=>`<section class="response-prior-round"><h3>บันทึกการแก้ไขครั้งที่ ${esc(r.round_no)} (อ่านอย่างเดียว)</h3><p class="muted">ผู้ตรวจรับไม่ผ่าน: ${esc(r.rejection_reason||'-')}</p><p><b>รายละเอียดปัญหา:</b> ${esc(r.receiver_problem_detail||'-')}</p><p><b>วิเคราะห์สาเหตุ:</b> ${esc(r.problem_analysis||'-')}</p><p><b>การแก้ไข:</b> ${esc(r.corrective_action||'-')}</p><p><b>กำหนดเสร็จ:</b> ${esc(r.due_date||'-')}</p><h3>ไฟล์แนบการแก้ไขรอบนี้</h3>${mediaRoundReady?await mediaFor([],a.assignment_id,false,Number(r.round_no)):'<p class="muted">ต้องอัปเดตส่วนแยกรอบไฟล์แนบใน Supabase ก่อนแสดงประวัติไฟล์</p>'}</section>`))).join('');
  const oldDataNotice=hasLegacyUnarchivedFailure?'<div class="rework-unarchived">รายการนี้เคยตรวจรับไม่ผ่านก่อนที่ระบบบันทึกรอบจะพร้อม ข้อมูลการแก้ไขเดิมถูกล็อกเพื่อไม่ให้เขียนทับ กรุณาตรวจสอบและรัน SQL ซ่อมประวัติงานค้างเดิมก่อนเริ่มการแก้ไขครั้งที่ 2</div>':'';
  // Files attached in earlier rounds are view-only on rework; historical text is immutable in the DB.
  const systemAcceptNote=String(a.system_accept_comment||'').trim();
  const systemAcceptHtml=systemAcceptNote?'<aside class="system-accept-note"><h3>หมายเหตุจาก System Admin (รับงานแทน)</h3><p>'+esc(systemAcceptNote)+'</p></aside>':'';
- const responseMedia=showResponse?await mediaFor([],a.assignment_id,canEditCurrent&&priorRounds.length===0):'';
+ const responseMedia=showResponse?(priorRounds.length&&!mediaRoundReady?'<p class="action-note">ยังแยกไฟล์แนบตามรอบไม่ได้ ต้องติดตั้งส่วน Supabase ให้ครบก่อนเริ่มรอบใหม่</p>':await mediaFor([],a.assignment_id,canEditCurrent,roundNumber)):'';
  const issueNumbers=(a.issues||[]).map(i=>String(i.issue_number)).join(', ');
  const sharedResponse=(a.issues||[]).length>1;
  el.innerHTML=`<h3 class="response-title">การดำเนินงาน — ${esc(a.department_code)} · ปัญหา ${esc(issueNumbers)} <span class="badge">${esc(label(a.status))}</span></h3>${sharedResponse?'<p class="shared-response-note">คำตอบรวมของแผนกสำหรับปัญหา '+esc(issueNumbers)+' · คำตอบนี้ใช้ร่วมกันทุกข้อที่ระบุ</p>':''}
@@ -191,25 +191,24 @@ async function render(){clearTimeout(departmentHighlightTimer);if(!jobId){setNot
  <label class="field">รายละเอียดปัญหา<textarea class="recv" ${!canEditCurrent?'disabled':''}>${esc(a.receiver_problem_detail||'')}</textarea></label>
  <label class="field">วิเคราะห์สาเหตุ<textarea class="analysis" ${!canEditCurrent?'disabled':''}>${esc(a.problem_analysis||'')}</textarea></label>
  <label class="field">การแก้ไข<textarea class="fix" ${!canEditCurrent?'disabled':''}>${esc(a.corrective_action||'')}</textarea></label>
- <h3>ไฟล์แนบฝ่ายรับเรื่อง</h3>${responseMedia}
+ <h3>ไฟล์แนบฝ่ายรับเรื่อง</h3><div class="current-response-media">${responseMedia}</div>
  
- ${canEditCurrent?`<div class="no-print"><label>แนบรูป/วิดีโอ (สูงสุด 5 รูป และ 1 วิดีโอ)<input class="responseFiles" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" multiple></label></div>`:''}
+ ${canEditCurrent?'<div class="response-picker no-print"></div><p class="response-draft-state no-print" role="status" aria-live="polite"></p>':''}
  <div class="no-print actions"></div>
- <h3>การตรวจสอบและอนุมัติ</h3><p>${pendingHeadReview?'<strong class="head-review-alert">⏳ รอหัวหน้าแผนกรับเรื่องอนุมัติ</strong>':a.approved_at?'อนุมัติเมื่อ '+esc(new Date(a.approved_at).toLocaleString('th-TH')):esc(label(a.status))}</p>` : ''}${!showResponse?'<div class="no-print actions"></div>':''}`;
+ <h3>การตรวจสอบและอนุมัติ</h3><p>${pendingHeadReview?'<strong class="head-review-alert">⏳ รอหัวหน้าแผนกรับเรื่องอนุมัติ</strong>':a.approved_at?'อนุมัติเมื่อ '+esc(new Date(a.approved_at).toLocaleString('th-TH')):esc(label(a.status))}</p>` : ''}${!showResponse?'<p class="operation-waiting">รอการรับเรื่อง/ดำเนินงาน</p><div class="no-print actions"></div>':''}`;
  if(a.unrelated_requested_at&&a.status!=='CANCELLED'){const note=document.createElement('p');note.className='shared-response-note';note.textContent='รอพิจารณาฝ่ายรับเรื่อง: '+(a.unrelated_reason||'แจ้งว่าไม่เกี่ยวข้อง');el.prepend(note);}
  const actions=el.querySelector('.actions');
  function btn(text,action,color='secondary'){const b=document.createElement('button');b.textContent=text;b.className=color;b.onclick=()=>act(a,action,el);actions.append(b);}
  if(rights.canAccept){if(QA.profile?.role==='system_admin'){const note=document.createElement('label');note.className='admin-accept-comment';note.textContent='หมายเหตุรับงานแทนแผนก (ไม่บังคับ · สูงสุด 2,000 ตัวอักษร)';const area=document.createElement('textarea');area.className='admin-accept-input';area.placeholder='พิมพ์ข้อความถึงแผนกผู้รับเรื่อง ข้อความจะบันทึกไว้ในรายละเอียดหลังรับงาน';area.maxLength=2000;note.append(area);actions.append(note);}btn('รับงาน','ACCEPT');}
- if(canEditCurrent){btn('บันทึก','SAVE_DRAFT');if(rights.canHeadSend)btn('ส่งงาน','HEAD_SEND');if(rights.canRequestApproval)btn('ส่งให้หัวหน้าตรวจสอบ','REQUEST_APPROVAL');}
+ if(canEditCurrent){btn('บันทึกแบบร่าง','SAVE_DRAFT');if(rights.canHeadSend)btn('ส่งงาน','HEAD_SEND');if(rights.canRequestApproval)btn('ส่งให้หัวหน้าตรวจสอบ','REQUEST_APPROVAL');}
  if(rights.canApprove){btn('อนุมัติและส่งงาน','APPROVE');btn('ส่งกลับให้แก้ไข','RETURN','danger');}
  if(isFinalReviewer){btn('ผ่าน','REQUESTER_PASS');btn('ไม่ผ่าน','REQUESTER_FAIL','danger');}
  if(rights.canRequestUnrelated)btn('แจ้งไม่เกี่ยวข้องกับแผนก','UNRELATED_REQUEST','secondary');
  if(rights.canResolveUnrelated){
-  btn('ยืนยันไม่เกี่ยวข้อง','UNRELATED_CONFIRM');btn('คงแผนกเดิม','UNRELATED_REJECT','secondary');
   const routing=document.createElement('div');routing.className='unrelated-routing no-print';
-  routing.innerHTML='<h3>เปลี่ยนฝ่ายรับเรื่อง</h3><p class="muted">เลือกปัญหาที่จะย้าย ข้ออื่นและแผนกอื่นยังคงเดิม</p><label>ปัญหาที่ต้องการเปลี่ยน<select class="unrelated-issue">'+a.issues.map(i=>'<option value="'+esc(i.issue_id)+'">ปัญหา '+esc(i.issue_number)+' · '+esc(i.description)+'</option>').join('')+'</select></label><label>ฝ่ายรับเรื่องใหม่<select class="unrelated-target"><option value="">เลือกแผนกใหม่</option>'+receivingDepartments.filter(d=>d.code!==a.department_code).map(d=>'<option value="'+esc(d.code)+'">'+esc(d.code)+'</option>').join('')+'</select></label>';
-  const change=document.createElement('button');change.type='button';change.className='secondary';change.textContent='ยืนยันเปลี่ยนฝ่ายรับเรื่อง';
-  change.onclick=()=>resolveUnrelatedReceiver(a,routing,change);routing.append(change);el.append(routing);
+  routing.innerHTML='<h3>พิจารณาแผนกรับผิดชอบ</h3><div class="unrelated-choices"><label><input type="radio" name="unrelated-'+esc(a.assignment_id)+'" value="change"> เปลี่ยนแผนก</label><label><input type="radio" name="unrelated-'+esc(a.assignment_id)+'" value="cancel"> ยกเลิกงานแผนกนี้</label></div><div class="unrelated-target-fields" hidden><label>ปัญหาที่ต้องการเปลี่ยน<select class="unrelated-issue">'+a.issues.map(i=>'<option value="'+esc(i.issue_id)+'">ปัญหา '+esc(i.issue_number)+' · '+esc(i.description)+'</option>').join('')+'</select></label><label>ฝ่ายรับเรื่องใหม่<select class="unrelated-target"><option value="">เลือกแผนกใหม่</option>'+receivingDepartments.filter(d=>d.code!==a.department_code).map(d=>'<option value="'+esc(d.code)+'">'+esc(d.code)+'</option>').join('')+'</select></label></div>';
+  for(const input of routing.querySelectorAll('input[type=radio]'))input.onchange=()=>{routing.querySelector('.unrelated-target-fields').hidden=input.value!=='change';};
+  const confirmButton=document.createElement('button');confirmButton.type='button';confirmButton.textContent='ยืนยัน';confirmButton.onclick=()=>{const choice=routing.querySelector('input[type=radio]:checked')?.value;if(!choice){setNote('เลือกเปลี่ยนแผนกหรือยกเลิกงานแผนกนี้ก่อนยืนยัน',true);return;}if(choice==='change')resolveUnrelatedReceiver(a,routing,confirmButton);else act(a,'UNRELATED_CONFIRM',el);};routing.append(confirmButton);el.append(routing);
  }
  // V49: system admin rollback is per assignment; SQL enforces transition/version/reason.
  if(rights.system){const back=rights.rollbackTarget;if(back){const b=document.createElement('button');b.type='button';b.className='danger';b.textContent='ย้อนสถานะ → '+label(back);b.onclick=()=>adminRollback(a,back);actions.append(b);}}
@@ -217,6 +216,21 @@ async function render(){clearTimeout(departmentHighlightTimer);if(!jobId){setNot
   const input=[...el.querySelectorAll('.media-note-input')].find(x=>x.dataset.attachment===btnNote.dataset.attachment);
   if(!input)return;btnNote.disabled=true;try{await rpc('qa_v38_media_set_note',{p_attachment_id:btnNote.dataset.attachment,p_note:input.value});setNote('บันทึกหมายเหตุเรียบร้อย');}catch(e){setNote('บันทึกหมายเหตุไม่สำเร็จ: '+e.message,true)}finally{btnNote.disabled=false}
  });
+ if(canEditCurrent){
+  const key=String(a.assignment_id)+':'+roundNumber;el.dataset.queueKey=key;
+  if(!responseQueues.has(key))responseQueues.set(key,[]);
+  const entries=responseQueues.get(key),registeredIds=new Set(media.map(m=>String(m.attachment_id)));
+  for(let i=entries.length-1;i>=0;i--)if(entries[i].attachmentId&&registeredIds.has(String(entries[i].attachmentId))&&entries[i].savedNote===(entries[i].note||''))entries.splice(i,1);
+  const saved=responseDrafts.get(key);if(saved&&saved.version===a.version)for(const [selector,value] of Object.entries(saved.values))el.querySelector(selector).value=value;
+  const state=el.querySelector('.response-draft-state');const sendTarget=rights.canHeadSend?'ส่งงาน':'ส่งให้หัวหน้าตรวจสอบ';
+  const dirty=()=>{responseDrafts.set(key,{version:a.version,values:Object.fromEntries(['.recv','.analysis','.fix','.due'].map(q=>[q,el.querySelector(q).value]))});state.textContent='มีการแก้ไขที่ยังไม่ได้บันทึกแบบร่าง และยังไม่ได้'+sendTarget;state.dataset.state='unsaved';const empty=el.querySelector('.current-response-media > p.muted');if(empty)empty.hidden=entries.length>0;};
+  const persisted=['receiver_problem_detail','problem_analysis','corrective_action','due_date'].some(k=>String(a[k]||'').trim())||media.some(m=>m.scope==='ASSIGNMENT'&&m.assignment_id===a.assignment_id&&Number(m.response_round||1)===roundNumber);
+  state.textContent=persisted?'บันทึกแบบร่างแล้ว — ยังไม่ได้'+sendTarget:'ยังไม่มีแบบร่างที่บันทึก — กรอกข้อมูลแล้วกดบันทึกแบบร่าง หรือ'+sendTarget+'ได้เลย';state.dataset.state=persisted?'draft':'empty';
+  for(const field of el.querySelectorAll('.recv,.analysis,.fix,.due'))field.addEventListener('input',dirty);
+  const currentFiles=media.filter(m=>m.scope==='ASSIGNMENT'&&m.assignment_id===a.assignment_id&&Number(m.response_round||1)===roundNumber);
+  activePickers.push(QAMediaPicker.mount(el.querySelector('.response-picker'),{entries,existing:()=>({images:currentFiles.filter(m=>m.kind==='IMAGE').length,videos:currentFiles.filter(m=>m.kind==='VIDEO').length}),onChange:dirty,onError:message=>setNote(message,true)}));
+  if(saved&&saved.version===a.version||entries.length)dirty();
+ }
  if(!canEditCurrent){for(const sel of ['.recv','.analysis','.fix']){const textarea=el.querySelector(sel);if(!textarea)continue;const plain=document.createElement('div');plain.className='read-text';plain.textContent=textarea.value||'-';textarea.replaceWith(plain)}}
  const group=[...issueHost.querySelectorAll('.issue-department-group')].find(g=>g.dataset.assignment===String(a.assignment_id));
  // A single-issue assignment has an unambiguous mapping. A multi-issue
@@ -234,15 +248,18 @@ function organizeDetailPanels(issueSheet,issueHost){
  for(const a of assignments)for(const i of a.issues||[]){const key=String(i.issue_id);if(!issues.has(key))issues.set(key,{issue:i,assignments:[]});issues.get(key).assignments.push(a);}
  const storage=document.createElement('div');storage.className='issue-response-storage';storage.hidden=true;
  const cardBank=document.createElement('div'),panelBank=document.createElement('div');storage.append(cardBank,panelBank);
- const badge=a=>'<span class="issue-status '+esc(QAStatus.canonical(a.status))+'">'+esc(label(a.status))+'</span>';
+ const attention=a=>{const text=QAWorkflow.reviewAttention(QA.profile,detail,a);return text?'<span class="review-attention"><span aria-hidden="true">●</span> '+esc(text)+'</span>':'';};
+ const badge=a=>attention(a)+'<span class="issue-status '+esc(QAStatus.canonical(a.status))+'">'+esc(label(a.status))+'</span>';
  for(const original of [...issueHost.querySelectorAll('.issue-department-group')]){
   const a=assignments.find(x=>String(x.assignment_id)===original.dataset.assignment);if(!a)continue;
   const panel=original.querySelector('.department-panel');if(panel)panel.remove();
   for(const card of [...original.querySelectorAll('.issue-card')]){sourceCards.set(String(a.assignment_id)+':'+card.dataset.issueId,card);cardBank.append(card);}
   const group=document.createElement('section');group.className='issue-department-group issue-operation-group';group.id=original.id;group.dataset.assignment=a.assignment_id;group.dataset.departmentCode=a.department_code;
   group.innerHTML='<div class="operation-department-heading"><strong>'+esc(a.department_code)+'</strong>'+badge(a)+'</div>';
-  const sources=document.createElement('details');sources.className='received-issues';sources.innerHTML='<summary>ข้อมูลปัญหาและไฟล์จากผู้แจ้ง</summary><div class="source-issue-holder"></div>';group.append(sources);
-  if(panel){panel.querySelector('.response-title')?.remove();group.append(panel);}else{const note=document.createElement('p');note.className='muted';note.textContent='แผนกยังไม่ได้รับงาน';group.append(note);}
+  const accepted=a.status!=='OPEN'||Boolean(a.accepted_at||a.responsible_user),q=QAWorkflow.permissions(QA.profile,detail,a);
+  const sources=document.createElement(accepted?'details':'div');sources.className='received-issues';sources.innerHTML=(accepted?'<summary>ข้อมูลปัญหาและไฟล์จากผู้แจ้ง</summary>':'<h3>ข้อมูลปัญหาและไฟล์จากผู้แจ้ง</h3>')+'<div class="source-issue-holder"></div>';
+  if(panel){panel.querySelector('.response-title')?.remove();if(accepted&&(q.own||q.system))panel.prepend(sources);else group.append(sources);group.append(panel);}else{group.append(sources);const note=document.createElement('p');note.className='operation-waiting';note.textContent='รอการรับเรื่อง/ดำเนินงาน';group.append(note);}
+  group._sourceDisclosure=sources;group._sourceParent=sources.parentElement;group._accepted=accepted;
   groups.set(String(a.assignment_id),group);panelBank.append(group);
  }
  issueHost.replaceChildren();issueSheet.append(storage);
@@ -252,17 +269,17 @@ function organizeDetailPanels(issueSheet,issueHost){
  for(const {issue:i,assignments:related} of [...issues.values()].sort((a,b)=>Number(a.issue.issue_number)-Number(b.issue.issue_number))){
   const fold=document.createElement('details');fold.className='issue-disclosure';fold.dataset.issueId=String(i.issue_id);fold.dataset.assignmentIds=related.map(a=>String(a.assignment_id)).join(',');
   fold.innerHTML='<summary aria-label="ปัญหา '+esc(i.issue_number)+': '+esc(i.description)+'"><span class="issue-row-number">'+esc(i.issue_number)+'.</span><span class="issue-row-description" title="'+esc(i.description)+'">'+esc(i.description)+'</span><span class="issue-row-departments">'+related.map(a=>'<span class="issue-department-state"><span class="issue-responsible-department">'+esc(a.department_code)+'</span>'+badge(a)+'</span>').join('')+'</span><span class="issue-row-chevron" aria-hidden="true"></span></summary>';
-  const body=document.createElement('div');body.className='issue-disclosure-body';body.innerHTML='<p class="expanded-issue-description">'+esc(i.description)+'</p><h3 class="issue-operations-title">การดำเนินงาน</h3><div class="issue-operation-host"></div>';fold.append(body);
+  const body=document.createElement('div');body.className='issue-disclosure-body';body.innerHTML='<p class="expanded-issue-description">'+esc(i.description)+'</p><div class="issue-source-before-work"></div><h3 class="issue-operations-title">การดำเนินงาน</h3><div class="issue-operation-host"></div>';fold.append(body);
   const mount=()=>{
    if(activeIssue===fold)return;
    for(const other of folds)if(other!==fold)other.open=false;
    // Return the previous issue's controls to storage before attaching this issue.
    for(const group of groups.values()){
-    for(const card of [...group.querySelectorAll('.source-issue-holder > .issue-card')])cardBank.append(card);
-    group.querySelector('.received-issues').open=false;panelBank.append(group);
+    for(const card of [...group._sourceDisclosure.querySelectorAll('.source-issue-holder > .issue-card')])cardBank.append(card);
+    const sources=group._sourceDisclosure;group._sourceParent.prepend(sources);if(sources?.tagName==='DETAILS')sources.open=false;panelBank.append(group);
    }
    const host=body.querySelector('.issue-operation-host');
-   for(const a of related){const group=groups.get(String(a.assignment_id));if(!group)continue;const card=sourceCards.get(String(a.assignment_id)+':'+String(i.issue_id));if(card)group.querySelector('.source-issue-holder').append(card);host.append(group);}
+   for(const a of related){const group=groups.get(String(a.assignment_id));if(!group)continue;const card=sourceCards.get(String(a.assignment_id)+':'+String(i.issue_id));if(card)group._sourceDisclosure.querySelector('.source-issue-holder').append(card);if(!group._accepted)body.querySelector('.issue-source-before-work').append(group._sourceDisclosure);host.append(group);}
    activeIssue=fold;
   };
   fold._openIssue=()=>{mount();fold.open=true;};
@@ -295,7 +312,7 @@ function renderTracker(d){
   $('jobTrackerNumber').textContent=d.car_code||d.job_id;
   const issue=all.flatMap(a=>a.issues||[]).find(i=>String(i.issue_id)===issueId);
   $('trackerScope').textContent=selectedDepartment?'สถานะแผนก '+selectedDepartment:issueId?(issue?'สถานะปัญหา '+String(d.car_code||d.job_id)+'-'+String(issue.issue_number||1).padStart(2,'0'):'ไม่พบปัญหาที่ระบุในลิงก์'):'สถานะรวมของใบงาน';
-  $('trackerStatus').textContent=QAStatus.label(status);
+  $('trackerStatus').textContent=QAStatus.label(status);let attention=$('trackerAttention');if(!attention){attention=document.createElement('div');attention.id='trackerAttention';$('trackerStatus').after(attention);}attention.className='review-attention';attention.textContent=assignments.some(a=>QAWorkflow.reviewAttention(QA.profile,d,a))?'● '+[...new Set(assignments.map(a=>QAWorkflow.reviewAttention(QA.profile,d,a)).filter(Boolean))].join(' · '):'';
   $('jobTracker').classList.toggle('is-mixed',status==='MIXED');
   document.querySelectorAll('.tracker-stages [data-step]').forEach((el,i)=>{
    el.classList.toggle('done',current>=0&&i<current);el.classList.toggle('current',i===current);
@@ -341,7 +358,6 @@ async function act(a,action,el){
  if(pendingAssignmentActions.has(a.assignment_id))return;
  if(!QAWorkflow.allowed(action,QA.profile,detail,a,{legacyLocked:a._legacyLocked===true})){setNote('บัญชีนี้ไม่มีสิทธิ์ทำรายการนี้ในสถานะปัจจุบัน',true);return;}
  let data={};if(['SAVE_DRAFT','REQUEST_APPROVAL','HEAD_SEND'].includes(action)){data={receiver_problem_detail:el.querySelector('.recv').value,problem_analysis:el.querySelector('.analysis').value,corrective_action:el.querySelector('.fix').value,due_date:el.querySelector('.due').value};}
- if(['REQUEST_APPROVAL','HEAD_SEND'].includes(action)&&el.querySelector('.responseFiles')?.files?.length){setNote('กรุณากดบันทึกร่างเพื่ออัปโหลดไฟล์แนบก่อน แล้วจึงส่งให้หัวหน้าตรวจสอบ',true);return;}
  if(action==='UNRELATED_REQUEST'){const reason=prompt('แจ้งไม่เกี่ยวข้องกับแผนก '+a.department_code+' ก่อนรับงาน\nครอบคลุมปัญหา '+a.issues.map(i=>i.issue_number).join(', ')+' ที่แผนกนี้ได้รับ\nระบุเหตุผลเพื่อส่งให้หัวหน้าฝ่ายผู้แจ้งพิจารณา');if(!reason?.trim())return;data={reason:reason.trim()};}
  if(action==='UNRELATED_CONFIRM'&&!confirm('ยืนยันว่าแผนก '+a.department_code+' ไม่เกี่ยวข้องกับปัญหา '+a.issues.map(i=>i.issue_number).join(', ')+' ทั้งหมดที่แผนกนี้ได้รับ?\nจะยกเลิกเฉพาะการมอบหมายให้แผนกนี้ แผนกอื่นคงเดิม'))return;
  if(['RETURN','REQUESTER_FAIL'].includes(action)){const reason=prompt(action==='RETURN'?'ระบุเหตุผลที่ไม่อนุมัติ':'ระบุเหตุผลที่ไม่ผ่าน');if(!reason?.trim())return;data={reason:reason.trim()};}
@@ -349,24 +365,26 @@ async function act(a,action,el){
  if(['APPROVE','REQUESTER_PASS','UNRELATED_REJECT'].includes(action)&&!confirm('ยืนยันการดำเนินการ?'))return;
  const actionBar=document.querySelector('.department-action-bar[data-assignment="'+CSS.escape(String(a.assignment_id))+'"]');
  const buttons=[...(actionBar?.querySelectorAll('button')||[])];
- pendingAssignmentActions.add(a.assignment_id);
+ pendingAssignmentActions.add(a.assignment_id);el.inert=true;
  buttons.forEach(b=>{b.disabled=true;b.setAttribute('aria-busy','true');b.dataset.originalText=b.textContent;});
  const pressed=buttons.find(b=>b.dataset.originalText===({HEAD_SEND:'ส่งงาน',REQUEST_APPROVAL:'ส่งให้หัวหน้าตรวจสอบ',APPROVE:'อนุมัติและส่งงาน'}[action]||''));
  if(pressed)pressed.textContent='กำลังบันทึก...';
- try{setNote('กำลังบันทึก...');let expected=a.version;
- if(['REQUEST_APPROVAL','HEAD_SEND'].includes(action)){
-   // Save visible edits first and use the newly returned version for the follow-up action.
+ try{setNote('กำลังบันทึก...');let expected=a.version;let result;
+ if(['SAVE_DRAFT','REQUEST_APPROVAL','HEAD_SEND'].includes(action)){
    const saved=await rpc('qa_vnext_assignment_action',{p_assignment_id:a.assignment_id,p_action:'SAVE_DRAFT',p_expected_version:expected,p_data:data});
-   expected=Number(saved.version);
-   if(!Number.isInteger(expected)||expected<1)throw new Error('INVALID_SAVED_VERSION');
+   expected=Number(saved.version);if(!Number.isInteger(expected)||expected<1)throw new Error('INVALID_SAVED_VERSION');a.version=expected;
+   const draft=responseDrafts.get(el.dataset.queueKey);if(draft)draft.version=expected;
+   const state=el.querySelector('.response-draft-state');if(state){state.textContent='บันทึกข้อความแบบร่างแล้ว กำลังตรวจไฟล์แนบ — ยังไม่ได้ส่ง';state.dataset.state='draft';}
+   await uploadResponse(a.assignment_id,responseQueues.get(el.dataset.queueKey)||[]);
+   if(action==='SAVE_DRAFT')result=saved;
  }
- const {data:result,error}=await QA.client.rpc('qa_vnext_assignment_action',{p_assignment_id:a.assignment_id,p_action:action,p_expected_version:expected,p_data:['REQUEST_APPROVAL','HEAD_SEND'].includes(action)?{}:data});if(error)throw error;
- if(action==='SAVE_DRAFT'){const files=[...el.querySelector('.responseFiles')?.files||[]];if(files.length)await uploadResponse(a.assignment_id,files);}
- setNote('บันทึกสำเร็จ');await render();
+ if(action!=='SAVE_DRAFT')result=await rpc('qa_vnext_assignment_action',{p_assignment_id:a.assignment_id,p_action:action,p_expected_version:expected,p_data:['REQUEST_APPROVAL','HEAD_SEND'].includes(action)?{}:data});
+ if(el.dataset.queueKey){responseDrafts.delete(el.dataset.queueKey);responseQueues.delete(el.dataset.queueKey);}
+ setNote(action==='SAVE_DRAFT'?(QAWorkflow.permissions(QA.profile,detail,a).canHeadSend?'บันทึกแบบร่างแล้ว — ยังไม่ได้ส่งงาน':'บันทึกแบบร่างแล้ว — ยังไม่ได้ส่งหัวหน้าตรวจสอบ'):['REQUEST_APPROVAL','HEAD_SEND'].includes(action)?'ส่งงานสำเร็จ':'บันทึกสำเร็จ');await render();
  }catch(e){
   if(String(e.message||e).includes('VERSION_CONFLICT')){setNote('ข้อมูลใบงานถูกอัปเดตระหว่างเปิดหน้านี้ กำลังโหลดข้อมูลล่าสุด กรุณาตรวจสอบก่อนกดส่งงานอีกครั้ง',true);await render();}
-  else setNote('ไม่สามารถบันทึกได้: '+e.message,true);
- }finally{pendingAssignmentActions.delete(a.assignment_id);buttons.forEach(b=>{b.disabled=false;b.removeAttribute('aria-busy');if(b.dataset.originalText)b.textContent=b.dataset.originalText;});}
+  else{const state=el.querySelector('.response-draft-state');if(state&&['SAVE_DRAFT','REQUEST_APPROVAL','HEAD_SEND'].includes(action)){state.textContent='บันทึก/ส่งงานยังไม่ครบ — ตรวจข้อความแจ้งข้อผิดพลาดแล้วกดอีกครั้ง ยังไม่ได้ส่ง';state.dataset.state='unsaved';}setNote('ไม่สามารถบันทึกได้: '+e.message,true);}
+ }finally{el.inert=false;pendingAssignmentActions.delete(a.assignment_id);buttons.forEach(b=>{b.disabled=false;b.removeAttribute('aria-busy');if(b.dataset.originalText)b.textContent=b.dataset.originalText;});}
 }
 async function adminRollback(a,target){
  if(QA.profile?.role!=='system_admin'){setNote('เฉพาะ System Admin เท่านั้น',true);return;}
@@ -383,14 +401,16 @@ async function uploadIssue(issueNumber,files){const imgs=files.filter(f=>f.type.
  const path=`${QA.profile.user_id}/${crypto.randomUUID()}.${f.name.split('.').pop().toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,8)||'bin'}`;
  const {error}=await QA.client.storage.from('qa-vnext-media').upload(path,f,{contentType:f.type,upsert:false});if(error)throw error;
  try{await rpc('qa_vnext_register_attachment',{p_job_id:jobId,p_scope:'ISSUE',p_issue_number:issueNumber,p_assignment_id:null,p_kind:f.type.startsWith('image/')?'IMAGE':'VIDEO',p_path:path,p_mime_type:f.type,p_size_bytes:f.size});}catch(e){try{await QA.client.storage.from('qa-vnext-media').remove([path]);}catch{}throw e;}}}
-async function uploadResponse(assignmentId,files){const images=files.filter(f=>f.type.startsWith('image/')),videos=files.filter(f=>f.type.startsWith('video/'));
- if(images.length>5||videos.length>1||files.length!==images.length+videos.length)throw new Error('แนบได้สูงสุด 5 รูปและ 1 วิดีโอ');
- for(const f of files){const isImage=f.type.startsWith('image/'),limit=isImage?5242880:52428800;
- if(f.size>limit)throw new Error('ไฟล์เกินขนาด '+f.name);
- const ext=f.name.split('.').pop().toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,8)||'bin';const path=`${QA.profile.user_id}/${crypto.randomUUID()}.${ext}`;
- const {error}=await QA.client.storage.from('qa-vnext-media').upload(path,f,{contentType:f.type,upsert:false});if(error)throw error;
- try{await rpc('qa_vnext_register_attachment',{p_job_id:jobId,p_scope:'ASSIGNMENT',p_issue_number:null,p_assignment_id:assignmentId,p_kind:isImage?'IMAGE':'VIDEO',p_path:path,p_mime_type:f.type,p_size_bytes:f.size});}catch(e){try{await QA.client.storage.from('qa-vnext-media').remove([path]);}catch{}throw e;}
- }}
+async function uploadResponse(assignmentId,entries){
+ for(const entry of entries){const file=entry.file;QAMediaPicker.validate([file]);
+  if(!entry.attachmentId){const ext=file.name.split('.').pop().toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,8)||'bin',path=`${QA.profile.user_id}/${crypto.randomUUID()}.${ext}`;
+   const {error}=await QA.client.storage.from('qa-vnext-media').upload(path,file,{contentType:file.type,upsert:false});if(error)throw error;
+   try{const registered=await rpc('qa_vnext_register_attachment',{p_job_id:jobId,p_scope:'ASSIGNMENT',p_issue_number:null,p_assignment_id:assignmentId,p_kind:file.type.startsWith('image/')?'IMAGE':'VIDEO',p_path:path,p_mime_type:file.type,p_size_bytes:file.size});if(!registered?.attachment_id)throw Error('ลงทะเบียนไฟล์แนบไม่สำเร็จ');entry.attachmentId=registered.attachment_id;}
+   catch(e){try{await QA.client.storage.from('qa-vnext-media').remove([path]);}catch{}throw e;}
+  }
+  const note=entry.note||'';if(entry.savedNote!==note){if(note||entry.savedNote!==undefined)await rpc('qa_v38_media_set_note',{p_attachment_id:entry.attachmentId,p_note:note});entry.savedNote=note;}
+ }
+}
 // Structured A4 document: text stays selectable and sections may flow across pages.
 // Detail and attachment data are already scoped by the server-side V38 RPCs.
 async function exportStructuredPdf(preview){

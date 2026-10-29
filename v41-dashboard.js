@@ -213,7 +213,7 @@ async function loadRoleMetadata(jobs){
    for(const a of job.departmentAssignments){const source=data.assignments.find(x=>String(x.assignment_id)===a.assignmentId);if(!source)continue;
     a.rawStatus=String(source.status||a.rawStatus).toUpperCase();a.chartStatus=groupStatus(a.rawStatus);
     a.approvedAt=source.approved_at||null;a.approvalRequestedAt=source.approval_requested_at||null;a.responsibleUser=source.responsible_user||null;
-    a.unrelatedRequestedAt=source.unrelated_requested_at||null;
+    a.unrelatedRequestedAt=source.unrelated_requested_at||null;a.unrelatedDecidedAt=source.unrelated_decided_at||null;a.needsRework=Boolean(source.needs_rework);
     a.metadataLoaded=true;
    }
    // RETURN is recorded in audit history, not in the assignment's rework flag.

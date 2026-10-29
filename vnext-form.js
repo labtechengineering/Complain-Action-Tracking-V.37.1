@@ -83,15 +83,15 @@
   <p class="vn-files"></p><div class="vn-file-grid"></div>`;
   box.querySelector('.vn-category').value=p.category;box.querySelector('.vn-detail').value=p.description;
   for(const ch of box.querySelectorAll('.vn-dept'))ch.checked=p.departments.includes(ch.value);
-  box.querySelector('.vn-images').onchange=e=>{const files=[...e.target.files];if(files.length>5||files.some(f=>!['image/jpeg','image/png','image/webp'].includes(f.type)||f.size>5242880)){status('รูปภาพสูงสุด 5 รูป รูปละไม่เกิน 5 MB (JPG, PNG, WebP)',true);e.target.value='';return;}p.images=files;updateFiles();};
-  box.querySelector('.vn-video').onchange=e=>{const files=[...e.target.files];if(files.length>1||files.some(f=>!['video/mp4','video/webm'].includes(f.type)||f.size>52428800)){status('วิดีโอสูงสุด 1 คลิป ขนาดไม่เกิน 50 MB (MP4 หรือ WebM)',true);e.target.value='';return;}p.video=files;updateFiles();};
-  function updateFiles(){box.querySelector('.vn-files').textContent=`${p.images.length} รูป · ${p.video.length} วิดีโอ`;
+  box.querySelector('.vn-images').onchange=e=>{try{const files=[...e.target.files];window.QAMediaPicker.validate([...p.images,...p.video,...files]);p.images.push(...files);updateFiles();}catch(e){status(e.message,true);}finally{e.target.value='';}};
+  box.querySelector('.vn-video').onchange=e=>{try{const files=[...e.target.files];window.QAMediaPicker.validate([...p.images,...p.video,...files]);p.video.push(...files);updateFiles();}catch(e){status(e.message,true);}finally{e.target.value='';}};
+  let previewUrls=[];function updateFiles(){previewUrls.forEach(u=>URL.revokeObjectURL(u));previewUrls=[];box.querySelector('.vn-files').textContent=`${p.images.length} รูป · ${p.video.length} วิดีโอ`;
   const grid=box.querySelector('.vn-file-grid');grid.replaceChildren();
   const files=[...p.images.map((f,i)=>({f,kind:'image',i})),...p.video.map((f,i)=>({f,kind:'video',i}))];
   files.forEach(({f,kind,i})=>{
    const id=kind+'-'+i;const item=document.createElement('div');item.className='vn-file-item';
-   const src=URL.createObjectURL(f);const media=document.createElement(kind==='image'?'img':'video');media.src=src;media.title='คลิกเพื่อดูตัวอย่าง';
-   media.onclick=()=>window.open(src,'_blank','noopener');media.onload=()=>{};
+   const src=URL.createObjectURL(f);previewUrls.push(src);const media=document.createElement(kind==='image'?'img':'video');media.src=src;media.title='คลิกเพื่อดูตัวอย่าง';
+   if(kind==='image')media.onclick=()=>window.open(src,'_blank','noopener');else{media.controls=true;media.preload='metadata';}
    const note=document.createElement('textarea');note.placeholder='หมายเหตุ';note.maxLength=2000;note.value=p.notes[id]||'';note.oninput=()=>p.notes[id]=note.value;
    item.append(media,note);
    if(kind==='image'&&window.V38ImageEditor){const edit=document.createElement('button');edit.type='button';edit.textContent='แก้ไขรูป';edit.onclick=async()=>{try{const result=await window.V38ImageEditor.edit(f);if(result){p.images[i]=result;updateFiles()}}catch(e){status('แก้ไขรูปไม่สำเร็จ: '+err(e),true)}};item.append(edit)}

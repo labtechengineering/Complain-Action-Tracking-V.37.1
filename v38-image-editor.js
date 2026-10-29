@@ -1,52 +1,27 @@
-/* Client-side image annotator for V38 new-job attachments. No server writes occur until form submission. */
+/* Local image annotations; drawing and text styles are stored per object. */
 (()=>{'use strict';
- function edit(file){return new Promise((resolve,reject)=>{
-  const objectUrl=URL.createObjectURL(file),img=new Image();
-  img.onerror=()=>{URL.revokeObjectURL(objectUrl);reject(new Error('ไม่สามารถเปิดภาพ'))};
-  img.onload=()=>{
-   URL.revokeObjectURL(objectUrl);
-   const scale=Math.min(1,1200/Math.max(img.naturalWidth,img.naturalHeight));
-   const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));
-   const ctx=canvas.getContext('2d');if(!ctx){reject(new Error('Canvas ไม่พร้อม'));return}
-   const wrapper=document.createElement('div');wrapper.className='v38-editor-backdrop';wrapper.innerHTML=`<div class="v38-editor" role="dialog" aria-modal="true" aria-label="แก้ไขภาพ"><div class="v38-editor-tools"><button type="button" data-tool="draw">วาด</button><button type="button" data-tool="line">เส้นตรง</button><button type="button" data-tool="text">ข้อความ</button><label>ขนาดอักษร <input type="range" min="12" max="80" value="28" class="v38-fontsize"><span class="v38-size">28</span></label><button type="button" data-tool="undo">ย้อนกลับ</button><button type="button" data-tool="save">บันทึกภาพ</button><button type="button" data-tool="cancel">ยกเลิก</button></div><div class="v38-editor-canvas"></div><p class="v38-editor-hint">ลากเพื่อวาดหรือขยับข้อความ · คลิกเครื่องมือ “ข้อความ” เพื่อเพิ่มข้อความ</p></div>`;
-   const css=document.createElement('style');css.textContent=`.v38-editor-backdrop{position:fixed;inset:0;background:#091329b8;z-index:999999;display:grid;place-items:center;padding:12px}.v38-editor{max-width:96vw;max-height:96vh;overflow:auto;background:#fff;padding:16px;border-radius:15px;box-shadow:0 12px 45px #0003}.v38-editor-tools{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:12px}.v38-editor-tools button{border:1px solid #cbd5e1;background:#f1f5f9;color:#172337;border-radius:8px;padding:7px 12px;cursor:pointer}.v38-editor-tools button.active{background:#14274c;color:#fff}.v38-editor-tools label{font-size:12px;display:flex;align-items:center;gap:5px}.v38-editor-canvas{overflow:auto;max-height:70vh;background:#e5e7eb;display:flex;justify-content:center}.v38-editor-canvas canvas{max-width:100%;max-height:70vh;touch-action:none}.v38-editor-hint{font-size:12px;color:#64748b;margin:8px 0 0}`;
-   document.head.append(css);document.body.append(wrapper);
-   wrapper.querySelector('.v38-editor-canvas').append(canvas);
-   let tool='draw',actions=[],history=[],drawing=null,selected=-1,dragging=false;
-   function snapshot(){history.push(JSON.stringify(actions));if(history.length>80)history.shift()}
-   function paint(){ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(img,0,0,canvas.width,canvas.height);
-    for(const act of [...actions,...(drawing?[drawing]:[])]){
-     ctx.save();ctx.strokeStyle='#e03131';ctx.fillStyle='#e03131';ctx.lineWidth=Math.max(2,Math.round(canvas.width/450));ctx.lineJoin='round';ctx.lineCap='round';
-     if(act.tool==='draw'&&act.points?.length){ctx.beginPath();ctx.moveTo(...act.points[0]);for(const p of act.points.slice(1))ctx.lineTo(...p);ctx.stroke()}
-     if(act.tool==='line'){ctx.beginPath();ctx.moveTo(act.x,act.y);ctx.lineTo(act.x2,act.y2);ctx.stroke()}
-     if(act.tool==='text'){ctx.font=`bold ${act.size}px Arial,Tahoma,sans-serif`;ctx.fillText(act.text,act.x,act.y);if(selected===actions.indexOf(act)){const w=ctx.measureText(act.text).width;ctx.strokeStyle='#2563eb';ctx.lineWidth=1;ctx.strokeRect(act.x-4,act.y-act.size-3,w+8,act.size+10)}}
-     ctx.restore();
-    }
-   }
-   function at(event){const r=canvas.getBoundingClientRect();return {x:(event.clientX-r.left)*canvas.width/r.width,y:(event.clientY-r.top)*canvas.height/r.height}}
-   function findText(pt){for(let i=actions.length-1;i>=0;i--){const a=actions[i];if(a.tool!=='text')continue;ctx.font=`bold ${a.size}px Arial`;const w=ctx.measureText(a.text).width;if(pt.x>=a.x-8&&pt.x<=a.x+w+8&&pt.y>=a.y-a.size-10&&pt.y<=a.y+12)return i}return -1}
-   function setTool(next){tool=next;wrapper.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('active',b.dataset.tool===tool));selected=-1;paint()}
-   canvas.addEventListener('pointerdown',event=>{const pt=at(event);canvas.setPointerCapture(event.pointerId);
-    if(tool==='text'){selected=findText(pt);if(selected>=0){snapshot();dragging=true}else{const t=prompt('เพิ่มข้อความบนภาพ');if(t?.trim()){snapshot();const size=Number(wrapper.querySelector('.v38-fontsize').value);actions.push({tool:'text',text:t.trim().slice(0,300),x:pt.x,y:pt.y,size});selected=actions.length-1}paint()}return}
-    snapshot();drawing=tool==='line'?{tool:'line',x:pt.x,y:pt.y,x2:pt.x,y2:pt.y}:{tool:'draw',points:[[pt.x,pt.y]]};paint();
-   });
-   canvas.addEventListener('pointermove',event=>{if(!canvas.hasPointerCapture(event.pointerId))return;const pt=at(event);
-    if(dragging&&selected>=0){actions[selected].x=pt.x;actions[selected].y=pt.y;paint()}
-    else if(drawing){if(drawing.tool==='line'){drawing.x2=pt.x;drawing.y2=pt.y}else drawing.points.push([pt.x,pt.y]);paint()}
-   });
-   const stop=()=>{if(drawing){actions.push(drawing);drawing=null}dragging=false;paint()};canvas.addEventListener('pointerup',stop);canvas.addEventListener('pointercancel',stop);
-   const fontInput=wrapper.querySelector('.v38-fontsize');fontInput.addEventListener('input',()=>{wrapper.querySelector('.v38-size').textContent=fontInput.value;if(selected>=0&&actions[selected]?.tool==='text'){actions[selected].size=Number(fontInput.value);paint()}});
-   function cleanup(output){wrapper.remove();css.remove();resolve(output)}
-   wrapper.querySelectorAll('[data-tool]').forEach(b=>b.addEventListener('click',()=>{
-    const action=b.dataset.tool;
-    if(['draw','line','text'].includes(action))setTool(action);
-    else if(action==='undo'){if(history.length){actions=JSON.parse(history.pop());selected=-1;paint()}}
-    else if(action==='cancel')cleanup(null);
-    else if(action==='save'){selected=-1;paint();canvas.toBlob(blob=>{if(!blob){reject(new Error('บันทึกภาพไม่สำเร็จ'));cleanup(null);return}cleanup(new File([blob],'annotated.png',{type:'image/png'}))},'image/png',0.94)}
-   }));
-   setTool('draw');paint();
-  };
-  img.src=objectUrl;
- })}
- window.V38ImageEditor={edit};
+function edit(file){return new Promise((resolve,reject)=>{
+ const url=URL.createObjectURL(file),img=new Image();img.onerror=()=>{URL.revokeObjectURL(url);reject(Error('ไม่สามารถเปิดภาพ'));};img.onload=()=>{
+ URL.revokeObjectURL(url);const scale=Math.min(1,1200/Math.max(img.naturalWidth,img.naturalHeight)),canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));const ctx=canvas.getContext('2d');if(!ctx){reject(Error('Canvas ไม่พร้อม'));return;}
+ const wrapper=document.createElement('div');wrapper.className='v38-editor-backdrop';wrapper.innerHTML=`<div class="v38-editor" role="dialog" aria-modal="true" aria-label="แก้ไขภาพ"><div class="v38-editor-tools"><button type="button" data-tool="select">เลือก / ย้าย</button><button type="button" data-tool="draw">วาด</button><button type="button" data-tool="line">เส้นตรง</button><button type="button" data-tool="rect">สี่เหลี่ยม</button><button type="button" data-tool="ellipse">วงกลม / วงรี</button><button type="button" data-tool="text">ข้อความ</button><label>สีเส้น <input type="color" class="stroke-color" value="#e03131"></label><label>สีข้อความ <input type="color" class="text-color" value="#e03131"></label><label>ขนาดเส้น <input type="range" class="stroke-width" min="1" max="24" value="4"><output class="stroke-size">4</output></label><label>ลักษณะเส้น <select class="line-style"><option value="solid">เส้นทึบ</option><option value="dashed">เส้นประ</option><option value="dotted">เส้นจุด</option></select></label><label>ขนาดอักษร <input type="range" class="font-size" min="12" max="80" value="28"><output class="font-size-label">28</output></label><button type="button" data-tool="undo">ย้อนกลับ</button><button type="button" data-tool="save">บันทึกภาพ</button><button type="button" data-tool="cancel">ยกเลิก</button></div><div class="v38-editor-canvas"></div><p class="v38-editor-hint">ลากเพื่อวาดรูปทรง · เครื่องมือข้อความ: คลิกเพื่อเพิ่ม · เลือก / ย้าย: คลิกวัตถุแล้วเปลี่ยนสีหรือขนาดได้ · ลากเป็นวงกลมหรือวงรีตามขนาดที่ต้องการ</p></div>`;
+ const css=document.createElement('style');css.textContent='.v38-editor-backdrop{position:fixed;inset:0;background:#091329b8;z-index:999999;display:grid;place-items:center;padding:12px}.v38-editor{max-width:96vw;max-height:96vh;overflow:auto;background:white;padding:16px;border-radius:15px}.v38-editor-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}.v38-editor-tools button{border:1px solid #cbd5e1;background:#f1f5f9;color:#172337;border-radius:8px;padding:7px 12px;cursor:pointer}.v38-editor-tools button.active{background:#14274c;color:white}.v38-editor-tools label{font-size:12px;display:flex;align-items:center;gap:5px;font-weight:400}.v38-editor-tools input[type=color]{width:38px;height:32px;padding:2px;margin:0}.v38-editor-tools input[type=range]{width:85px;margin:0;padding:0}.v38-editor-tools select{width:auto;padding:6px}.v38-editor-canvas{overflow:auto;max-height:70vh;background:#e5e7eb;display:flex;justify-content:center}.v38-editor-canvas canvas{max-width:100%;max-height:70vh;touch-action:none}.v38-editor-hint{font-size:12px;color:#64748b}';document.head.append(css);document.body.append(wrapper);wrapper.querySelector('.v38-editor-canvas').append(canvas);
+ const $=q=>wrapper.querySelector(q);let tool='draw',actions=[],history=[],drawing=null,selected=-1,drag=null,finished=false;
+ const snapshot=()=>{history.push(JSON.stringify(actions));if(history.length>80)history.shift();};
+ const attrs=()=>({color:$('.stroke-color').value,textColor:$('.text-color').value,width:Number($('.stroke-width').value),style:$('.line-style').value,size:Number($('.font-size').value)});
+ function bounds(a){if(a.tool==='text'){ctx.font=`${a.size}px Tahoma,Arial,sans-serif`;return {x:a.x,y:a.y-a.size,w:ctx.measureText(a.text).width,h:a.size+10};}const points=a.tool==='draw'?a.points:[[a.x,a.y],[a.x2,a.y2]],xs=points.map(p=>p[0]),ys=points.map(p=>p[1]);return {x:Math.min(...xs),y:Math.min(...ys),w:Math.max(...xs)-Math.min(...xs),h:Math.max(...ys)-Math.min(...ys)};}
+ function paint(){ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(img,0,0,canvas.width,canvas.height);for(const a of [...actions,...(drawing?[drawing]:[])]){ctx.save();ctx.strokeStyle=a.color;ctx.fillStyle=a.textColor;ctx.lineWidth=a.width;ctx.lineJoin='round';ctx.lineCap='round';ctx.setLineDash(a.style==='dashed'?[a.width*4,a.width*2]:a.style==='dotted'?[1,a.width*2]:[]);const b=bounds(a);
+ if(a.tool==='draw'){ctx.beginPath();ctx.moveTo(...a.points[0]);for(const p of a.points.slice(1))ctx.lineTo(...p);ctx.stroke();}else if(a.tool==='line'){ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(a.x2,a.y2);ctx.stroke();}else if(a.tool==='rect')ctx.strokeRect(b.x,b.y,b.w,b.h);else if(a.tool==='ellipse'){ctx.beginPath();ctx.ellipse(b.x+b.w/2,b.y+b.h/2,Math.max(.1,b.w/2),Math.max(.1,b.h/2),0,0,Math.PI*2);ctx.stroke();}else if(a.tool==='text'){ctx.font=`${a.size}px Tahoma,Arial,sans-serif`;ctx.fillText(a.text,a.x,a.y);}ctx.restore();if(actions.indexOf(a)===selected){ctx.save();ctx.strokeStyle='#2563eb';ctx.lineWidth=1;ctx.setLineDash([4,4]);ctx.strokeRect(b.x-6,b.y-6,b.w+12,b.h+12);ctx.restore();}}}
+ function choose(i){selected=i;if(i<0)return;const a=actions[i];$('.stroke-color').value=a.color;$('.text-color').value=a.textColor;$('.stroke-width').value=a.width;$('.line-style').value=a.style;$('.font-size').value=a.size;$('.stroke-size').textContent=a.width;$('.font-size-label').textContent=a.size;}
+ function hit(pt){for(let i=actions.length-1;i>=0;i--){const b=bounds(actions[i]);if(pt.x>=b.x-9&&pt.x<=b.x+b.w+9&&pt.y>=b.y-9&&pt.y<=b.y+b.h+9)return i;}return -1;}
+ function setTool(t){tool=t;selected=-1;wrapper.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('active',b.dataset.tool===t));paint();}
+ const at=e=>{const r=canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*canvas.width/r.width,y:(e.clientY-r.top)*canvas.height/r.height};};
+ canvas.onpointerdown=e=>{const pt=at(e);canvas.setPointerCapture(e.pointerId);if(tool==='select'||tool==='text'){const i=hit(pt);if(i>=0&&(tool==='select'||actions[i].tool==='text')){snapshot();choose(i);drag=pt;paint();return;}if(tool==='select'){choose(-1);paint();return;}const text=prompt('เพิ่มข้อความบนภาพ');if(text?.trim()){snapshot();actions.push({tool:'text',text:text.trim().slice(0,300),...attrs(),x:pt.x,y:pt.y});choose(actions.length-1);paint();}return;}snapshot();selected=-1;drawing={tool,...attrs(),x:pt.x,y:pt.y,x2:pt.x,y2:pt.y,points:[[pt.x,pt.y]]};paint();};
+ canvas.onpointermove=e=>{if(!canvas.hasPointerCapture(e.pointerId))return;const pt=at(e);if(drag&&selected>=0){const a=actions[selected],dx=pt.x-drag.x,dy=pt.y-drag.y;a.x+=dx;a.y+=dy;if(a.x2!==undefined){a.x2+=dx;a.y2+=dy;}if(a.points)a.points=a.points.map(([x,y])=>[x+dx,y+dy]);drag=pt;}else if(drawing){drawing.x2=pt.x;drawing.y2=pt.y;if(drawing.tool==='draw')drawing.points.push([pt.x,pt.y]);}paint();};
+ const stop=()=>{if(drawing){actions.push(drawing);drawing=null;}drag=null;paint();};canvas.onpointerup=stop;canvas.onpointercancel=stop;
+ for(const control of ['.stroke-color','.text-color','.stroke-width','.line-style','.font-size'])$(control).addEventListener('input',()=>{if(selected>=0){snapshot();Object.assign(actions[selected],attrs());}$('.stroke-size').textContent=$('.stroke-width').value;$('.font-size-label').textContent=$('.font-size').value;paint();});
+ function cleanup(result){if(finished)return;finished=true;wrapper.remove();css.remove();resolve(result);}
+ wrapper.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>{const t=b.dataset.tool;if(['select','draw','line','rect','ellipse','text'].includes(t))setTool(t);else if(t==='undo'){if(history.length){actions=JSON.parse(history.pop());selected=-1;paint();}}else if(t==='cancel')cleanup(null);else if(t==='save'){selected=-1;paint();canvas.toBlob(blob=>{if(!blob){reject(Error('บันทึกภาพไม่สำเร็จ'));cleanup(null);return;}cleanup(new File([blob],file.name.replace(/\.[^.]+$/,'')+'-edited.png',{type:'image/png'}));},'image/png');}});
+ setTool('draw');};img.src=url;
+});}
+window.V38ImageEditor={edit};
 })();
