@@ -7,3 +7,5 @@
 .workflow-focus{outline:2px solid #3b82f6!important;outline-offset:5px;border-radius:9px;scroll-margin-top:28px}.workflow-focus-hint{display:block;margin:0 0 16px;padding:10px 13px;background:#eff6ff;border-left:3px solid #3b82f6;color:#1e40af;font-size:13px;font-weight:600;line-height:1.7}.workflow-focus:focus{box-shadow:none}@media print{.workflow-focus{outline:none!important}.workflow-focus-hint{display:none}}
 
 .department-action-bar.workflow-focus{padding:12px}.department-action-bar>.workflow-focus-hint{flex-basis:100%;margin:0 0 10px;width:100%}
+
+.requester-return-result{color:#b91c1c;line-height:1.8;margin:16px 0 8px;scroll-margin-top:28px}.requester-return-result strong,.requester-return-result span{display:block}.requester-return-result.workflow-focus{outline:none!important;box-shadow:none}

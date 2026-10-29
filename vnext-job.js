@@ -66,7 +66,7 @@ function guideDetail(context={}){
  const hashIssue=QAStatus.issueFromHash(location.hash);
  let issueId=context.issueId||hashIssue,assignment=all.find(a=>String(a.assignment_id)===String(context.assignmentId));
  // After finishing a review, lead to the next pending decision when there is one.
- if(['APPROVE','RETURN','REQUESTER_PASS','REQUESTER_FAIL','UNRELATED_CONFIRM'].includes(context.action)&&pending.length){assignment=pending[0];issueId=assignment.issues?.[0]?.issue_id;}
+ if(['APPROVE','RETURN','REQUESTER_PASS','UNRELATED_CONFIRM'].includes(context.action)&&pending.length){assignment=pending[0];issueId=assignment.issues?.[0]?.issue_id;}
  if(!assignment&&issueId)assignment=all.find(a=>(a.issues||[]).some(i=>String(i.issue_id)===String(issueId))&&(!trackerDepartment||a.department_code===trackerDepartment));
  if(!assignment&&trackerDepartment)assignment=all.find(a=>a.department_code===trackerDepartment);
  if(!assignment)assignment=pending[0]||all.find(a=>rights(a).canEdit)||all.find(a=>rights(a).canAccept);
@@ -82,15 +82,16 @@ function guideDetail(context={}){
  if(source?.tagName==='DETAILS')source.open=review||(context.sourceOpen||[]).includes(String(assignment.assignment_id));
  for(const old of fold.querySelectorAll('.prior-round-disclosure'))old.open=(context.historyOpen||[]).includes(old.querySelector('summary')?.textContent);
  const panel=group?.querySelector('.department-panel');
- const target=unrelated?source?.querySelector('.unrelated-routing')||group?.querySelector('.unrelated-routing'):
-   q.canAccept?source?.querySelector('.unaccepted-actions'):context.action==='SAVE_DRAFT'?panel?.querySelector('.department-action-bar')||panel:panel||group||source;
+ const returnResult=panel?.querySelector('.requester-return-result');
+ const target=returnResult|| (unrelated?source?.querySelector('.unrelated-routing')||group?.querySelector('.unrelated-routing'):
+   q.canAccept?source?.querySelector('.unaccepted-actions'):context.action==='SAVE_DRAFT'?panel?.querySelector('.department-action-bar')||panel:panel||group||source);
  if(!target)return;
  document.querySelectorAll('.workflow-focus').forEach(n=>{n.classList.remove('workflow-focus');n.querySelector(':scope > .workflow-focus-hint')?.remove();});
  target.classList.add('workflow-focus');target.dataset.assignment=assignment.assignment_id;target.tabIndex=-1;
  const hint=document.createElement('p');hint.className='workflow-focus-hint';hint.setAttribute('role','status');
  hint.textContent=unrelated?'รอคุณพิจารณาแผนกรับผิดชอบ':review?(q.canFinalReview?'รอคุณตรวจสอบรายละเอียดและไฟล์แนบ แล้วเลือกผลตรวจด้านล่าง':'รอคุณตรวจสอบรายละเอียดและไฟล์แนบ แล้วเลือกอนุมัติหรือส่งกลับด้านล่าง'):
   q.canAccept?'รับงานของแผนก '+assignment.department_code+' ได้ที่นี่':q.canEdit?(context.action==='SAVE_DRAFT'?'บันทึกแบบร่างแล้ว — ยังไม่ได้ส่งงาน กดส่งด้านล่างเมื่อพร้อม':'กรอกข้อมูลการดำเนินงานและแนบไฟล์ได้ที่นี่'):'ผลการดำเนินการล่าสุดของแผนก '+assignment.department_code;
- target.prepend(hint);
+ if(!returnResult)target.prepend(hint);
  target.focus?.({preventScroll:true});
  target.scrollIntoView?.({behavior:window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches?'auto':'smooth',block:'start'});
 }
@@ -219,6 +220,9 @@ async function render(requestedFocus={}){const focusContext={...captureDetailFoc
  a._legacyLocked=hasLegacyUnarchivedFailure;
  const canEditCurrent=responseEditable&&!hasLegacyUnarchivedFailure&&!(priorRounds.length&&!mediaRoundReady);
  const afterRejection=priorRounds.length>0&&a.status==='IN_PROGRESS'&&!a.approval_requested_at;
+ const hasCurrentResponse=['receiver_problem_detail','problem_analysis','corrective_action'].some(k=>String(a[k]||'').trim())||media.some(m=>m.scope==='ASSIGNMENT'&&m.assignment_id===a.assignment_id&&Number(m.response_round||1)===roundNumber);
+ const hideEmptyRework=afterRejection&&!canEditCurrent&&!hasCurrentResponse;
+ const rejectedReason=String(a.requester_review_reason||priorRounds[priorRounds.length-1]?.rejection_reason||'').trim();
  const earlier=(await Promise.all(priorRounds.map(async r=>`<section class="response-prior-round"><h3>บันทึกการแก้ไขครั้งที่ ${esc(r.round_no)} (อ่านอย่างเดียว)</h3><p class="muted">ผู้ตรวจรับไม่ผ่าน: ${esc(r.rejection_reason||'-')}</p><p><b>รายละเอียดปัญหา:</b> ${esc(r.receiver_problem_detail||'-')}</p><p><b>วิเคราะห์สาเหตุ:</b> ${esc(r.problem_analysis||'-')}</p><p><b>การแก้ไข:</b> ${esc(r.corrective_action||'-')}</p><p><b>กำหนดเสร็จ:</b> ${esc(r.due_date||'-')}</p><h3>ไฟล์แนบการแก้ไขรอบนี้</h3>${mediaRoundReady?await mediaFor([],a.assignment_id,false,Number(r.round_no)):'<p class="muted">ต้องอัปเดตส่วนแยกรอบไฟล์แนบใน Supabase ก่อนแสดงประวัติไฟล์</p>'}</section>`))).join('');
  const oldDataNotice=hasLegacyUnarchivedFailure?'<div class="rework-unarchived">รายการนี้เคยตรวจรับไม่ผ่านก่อนที่ระบบบันทึกรอบจะพร้อม ข้อมูลการแก้ไขเดิมถูกล็อกเพื่อไม่ให้เขียนทับ กรุณาตรวจสอบและรัน SQL ซ่อมประวัติงานค้างเดิมก่อนเริ่มการแก้ไขครั้งที่ 2</div>':'';
  // Files attached in earlier rounds are view-only on rework; historical text is immutable in the DB.
@@ -229,7 +233,7 @@ async function render(requestedFocus={}){const focusContext={...captureDetailFoc
  const sharedResponse=(a.issues||[]).length>1;
  el.innerHTML=`<h3 class="response-title">การดำเนินงาน — ${esc(a.department_code)} · ปัญหา ${esc(issueNumbers)} <span class="badge">${esc(label(a.status))}</span></h3>${sharedResponse?'<p class="shared-response-note">คำตอบรวมของแผนกสำหรับปัญหา '+esc(issueNumbers)+' · คำตอบนี้ใช้ร่วมกันทุกข้อที่ระบุ</p>':''}
  ${systemAcceptHtml}
- ${showResponse?`${earlier}${oldDataNotice}<h3>${priorRounds.length?'รายละเอียดการแก้ไขครั้งที่ '+roundNumber:'รายละเอียดการดำเนินการ'}</h3>${afterRejection?'<p class="rework-reminder">↩ ส่งกลับแก้ไข — กรุณากรอกข้อมูลการแก้ไขรอบใหม่ บันทึกครั้งก่อนอ่านได้อย่างเดียว</p>':''}<p><b>ผู้รับผิดชอบหลัก:</b> ${esc(a.responsible_name||a.responsible_user||'ยังไม่รับงาน')}</p>
+ ${showResponse?(hideEmptyRework?`${earlier}${oldDataNotice}<p class="requester-return-result" role="status"><strong>ตรวจสอบไม่ผ่าน — ส่งกลับแก้ไข</strong><span>${esc(rejectedReason||'รอแผนกดำเนินการแก้ไข')}</span></p><div class="no-print actions"></div>`:`${earlier}${oldDataNotice}<h3>${priorRounds.length?'รายละเอียดการแก้ไขครั้งที่ '+roundNumber:'รายละเอียดการดำเนินการ'}</h3>${afterRejection?'<p class="rework-reminder">↩ ส่งกลับแก้ไข — กรุณากรอกข้อมูลการแก้ไขรอบใหม่ บันทึกครั้งก่อนอ่านได้อย่างเดียว</p>':''}<p><b>ผู้รับผิดชอบหลัก:</b> ${esc(a.responsible_name||a.responsible_user||'ยังไม่รับงาน')}</p>
  <div class="row"><label>วันกำหนดเสร็จ<input class="due" type="date" value="${esc(a.due_date||'')}" ${!canEditCurrent?'disabled':''}></label></div>
  <label class="field">รายละเอียดปัญหา<textarea class="recv" ${!canEditCurrent?'disabled':''}>${esc(a.receiver_problem_detail||'')}</textarea></label>
  <label class="field">วิเคราะห์สาเหตุ<textarea class="analysis" ${!canEditCurrent?'disabled':''}>${esc(a.problem_analysis||'')}</textarea></label>
@@ -238,7 +242,7 @@ async function render(requestedFocus={}){const focusContext={...captureDetailFoc
  
  ${canEditCurrent?'<div class="response-picker no-print"></div><p class="response-draft-state no-print" role="status" aria-live="polite"></p>':''}
  <div class="no-print actions"></div>
- <h3>การตรวจสอบและอนุมัติ</h3><p>${pendingHeadReview?'<strong class="head-review-alert">⏳ รอหัวหน้าแผนกรับเรื่องอนุมัติ</strong>':a.approved_at?'อนุมัติเมื่อ '+esc(new Date(a.approved_at).toLocaleString('th-TH')):esc(label(a.status))}</p>` : ''}${!showResponse?'<p class="operation-waiting">รอการรับเรื่อง/ดำเนินงาน</p><div class="no-print actions"></div>':''}`;
+ <h3>การตรวจสอบและอนุมัติ</h3><p>${pendingHeadReview?'<strong class="head-review-alert">⏳ รอหัวหน้าแผนกรับเรื่องอนุมัติ</strong>':a.approved_at?'อนุมัติเมื่อ '+esc(new Date(a.approved_at).toLocaleString('th-TH')):esc(label(a.status))}</p>`) : ''}${!showResponse?'<p class="operation-waiting">รอการรับเรื่อง/ดำเนินงาน</p><div class="no-print actions"></div>':''}`;
  if(a.unrelated_requested_at&&a.status!=='CANCELLED'){const note=document.createElement('p');note.className='shared-response-note';note.textContent='รอพิจารณาฝ่ายรับเรื่อง: '+(a.unrelated_reason||'แจ้งว่าไม่เกี่ยวข้อง');el.prepend(note);}
  const actions=el.querySelector('.actions');
  function btn(text,action,color='secondary'){const b=document.createElement('button');b.textContent=text;b.className=color;b.onclick=()=>act(a,action,el);actions.append(b);}
