@@ -70,8 +70,7 @@ function guideDetail(context={}){
  // must not turn somebody else's update into an action for this user.
  if(initial&&!actionable.length){
   document.querySelectorAll('.workflow-focus').forEach(n=>{n.classList.remove('workflow-focus');n.querySelector(':scope > .workflow-focus-hint')?.remove();});
-  const tracker=$('jobTracker');tracker.tabIndex=-1;tracker.focus?.({preventScroll:true});
-  tracker.scrollIntoView?.({behavior:'auto',block:'start'});return;
+  return;
  }
  const candidates=initial?actionable:all;
  let issueId=context.issueId||hashIssue,assignment=all.find(a=>String(a.assignment_id)===String(context.assignmentId));
