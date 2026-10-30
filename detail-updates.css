@@ -9,3 +9,11 @@
 .department-action-bar.workflow-focus{padding:12px}.department-action-bar>.workflow-focus-hint{flex-basis:100%;margin:0 0 10px;width:100%}
 
 .requester-return-result{color:#b91c1c;line-height:1.8;margin:16px 0 8px;scroll-margin-top:28px}.requester-return-result strong,.requester-return-result span{display:block}.requester-return-result.workflow-focus{outline:none!important;box-shadow:none}
+
+/* System Admin: one full problem description, without nested source cards. */
+.admin-compact-issue .admin-issue-reference{font-size:12px;color:#64748b;margin:0 0 6px}
+.admin-compact-issue .expanded-issue-description{white-space:pre-wrap;overflow-wrap:anywhere;margin:0 0 16px}
+.admin-compact-issue .admin-source-card{border:0;background:transparent;box-shadow:none;padding:0;margin:0}
+.admin-compact-issue .admin-source-card>.media[hidden]{display:none!important}
+.admin-compact-issue .admin-operation-group>.operation-department-heading[hidden]{display:none}
+.admin-compact-issue .admin-source-card>.media{margin-top:8px}
