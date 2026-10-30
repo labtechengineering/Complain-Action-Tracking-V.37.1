@@ -15,6 +15,7 @@ function visibleAssignments(p,j,assignments){
  const origin=norm(j.from_department??j.fromDepartment)===norm(p.department);
  return assignments.filter(a=>origin||norm(dept(a))===norm(p.department));
 }
+function awaitingDepartmentWork(a){return state(a)==='IN_PROGRESS'&&!!value(a,'accepted_at','acceptedAt')&&!value(a,'responsible_user','responsibleUser');}
 function permissions(p,j,a,{hasResponseFiles=false,legacyLocked=false}={}){
  const role=norm(p.role),active=p.active!==false&&(!p.approval_status||p.approval_status==='APPROVED');
  const system=active&&role==='system_admin',member=active&&['user','department_admin'].includes(role);
@@ -23,13 +24,13 @@ function permissions(p,j,a,{hasResponseFiles=false,legacyLocked=false}={}){
  const responsible=!!p.user_id&&String(a.responsible_user??a.responsibleUser??'')===String(p.user_id);
  const owner=j.is_requester===true||j.isRequester===true||!!p.user_id&&String(j.created_by??j.createdBy??'')===String(p.user_id);
  const s=state(a),unrelated=!!value(a,'unrelated_requested_at','unrelatedRequestedAt');
- const canEdit=active&&(system||own)&&responsible&&s==='IN_PROGRESS'&&!requested(a)&&!unrelated&&!legacyLocked;
+ const canEdit=active&&own&&responsible&&s==='IN_PROGRESS'&&!requested(a)&&!unrelated&&!legacyLocked;
  const canHeadReview=role==='department_admin'&&own&&s==='IN_PROGRESS'&&requested(a)&&!approved(a)&&!unrelated;
  const canFinalReview=role==='department_admin'&&origin&&s==='WAITING_REVIEW'&&approved(a);
  let rollbackTarget=system?({IN_PROGRESS:'OPEN',WAITING_REVIEW:'IN_PROGRESS',REWORK:'WAITING_REVIEW',CLOSED:'WAITING_REVIEW',CANCELLED:'OPEN'})[s]||null:null;
  if(rollbackTarget==='OPEN'&&(hasResponseFiles||requested(a)||approved(a)||['receiver_problem_detail','problem_analysis','corrective_action'].some(k=>String(a[k]||'').trim())))rollbackTarget=null;
  return {own,origin,owner,system,responsible,
- canAccept:active&&(system||own)&&['OPEN','IN_PROGRESS'].includes(s)&&!a.responsible_user&&!a.responsibleUser&&!unrelated,
+ canAccept:active&&(system||own)&&['OPEN','IN_PROGRESS'].includes(s)&&!a.responsible_user&&!a.responsibleUser&&!unrelated&&(!system||!value(a,'accepted_at','acceptedAt')),
  canEdit,canRequestApproval:canEdit&&role==='user',canHeadSend:canEdit&&role==='department_admin'&&own,
  canApprove:canHeadReview,canFinalReview,
  canRequestUnrelated:own&&s==='OPEN'&&!a.accepted_at&&!a.acceptedAt&&!a.responsible_user&&!a.responsibleUser&&!unrelated,
@@ -56,5 +57,5 @@ function notices(p,j,assignments){
  return [...notices.values()];
 }
 function reviewAttention(p,j,a){const q=permissions(p,j,a);return q.canFinalReview||q.canResolveUnrelated?'รอคุณตรวจสอบ':q.canApprove?'รอคุณอนุมัติ':'';}
-window.QAWorkflow={norm,state,visibleAssignments,permissions,allowed,notices,reviewAttention};
+window.QAWorkflow={norm,state,awaitingDepartmentWork,visibleAssignments,permissions,allowed,notices,reviewAttention};
 })();
